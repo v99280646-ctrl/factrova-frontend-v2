@@ -2243,6 +2243,33 @@ function CreateProjectDialog({
             serviceName: service.name,
           })),
       });
+
+      // Update or create entries in Stock Management for "New Stock" materials
+      const newStockMaterialsToSync = validMaterials.filter((m) => m.source === "new-stock");
+      for (const item of newStockMaterialsToSync) {
+        const existing = inventoryStock.find(
+          (s) =>
+            s.type.toLowerCase() === item.type.toLowerCase() &&
+            (s.thickness || "").toLowerCase() === (item.thickness || "").toLowerCase(),
+        );
+
+        if (existing) {
+          const newQuantity = Number(existing.quantity) + Number(item.sheets);
+          await apiRequest(`/stock/${existing.id}/quantity`, {
+            method: "PATCH",
+            body: { quantity: newQuantity },
+          });
+        } else {
+          await api.create("stock", {
+            material: item.type,
+            type: item.type,
+            thickness: item.thickness,
+            quantity: Number(item.sheets),
+            unit: item.unit || "sheets",
+          });
+        }
+      }
+
       const savedProject: Project = {
         id: projectRow.code,
         name: projectRow.name,
