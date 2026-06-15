@@ -653,7 +653,7 @@ function Stock() {
                       >
                         <td className="px-4 py-3 font-medium">{s.type}</td>
                         <td className="px-4 py-3 text-muted-foreground">{s.thickness || "-"}</td>
-                        <td className="px-4 py-3 text-right font-semibold">{s.quantity}</td>
+                        <td className="px-4 py-3 text-right font-semibold">{Number(s.quantity.toFixed(2))}</td>
                         <td className="px-4 py-3 text-muted-foreground">{s.unit}</td>
                         <td className="px-4 py-3">
                           <span

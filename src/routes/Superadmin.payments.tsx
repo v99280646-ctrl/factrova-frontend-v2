@@ -65,7 +65,7 @@ function SuperAdminPayments() {
                   >
                     <td className="px-4 py-3 font-medium">{payment.factoryId?.name || "-"}</td>
                     <td className="px-4 py-3 text-slate-300">
-                      {payment.currency} {new Intl.NumberFormat("en-IN").format(payment.amount)}
+                      {payment.currency} {new Intl.NumberFormat("en-IN").format(Number(payment.amount.toFixed(2)))}
                     </td>
                     <td className="px-4 py-3">
                       <Badge

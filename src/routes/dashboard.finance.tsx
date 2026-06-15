@@ -244,7 +244,7 @@ function Finance() {
                     <p className="text-sm text-muted-foreground">{s.label}</p>
                     <p className="mt-2 flex items-center text-2xl font-bold tracking-tight">
                       <IndianRupee className="h-5 w-5" />
-                      {s.value.toLocaleString("en-IN")}
+                      {Number(s.value.toFixed(2)).toLocaleString("en-IN")}
                     </p>
                   </div>
                   <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${s.bg} ${s.tone}`}>
@@ -352,8 +352,7 @@ function Finance() {
                             {t.type}
                           </span>
                         </td>
-                        <td className={`px-4 py-3 text-right font-semibold ${t.type === "credit" ? "text-success" : "text-destructive"}`}>
-                          {t.type === "credit" ? "+" : "-"} Rs.{t.amount.toLocaleString("en-IN")}
+                        <td className={`px-4 py-3 text-right font-semibold ${t.type === "credit" ? "text-success" : "text-destructive"}`}>{t.type === "credit" ? "+" : "-"} Rs.{Number(t.amount.toFixed(2)).toLocaleString("en-IN")}
                         </td>
                       </tr>
                     ))}
@@ -484,7 +483,7 @@ function Finance() {
                         <td className="px-3 py-2">
                           <Label className="sr-only">Total</Label>
                           <Input
-                            value={`Rs.${getItemTotal(item).toLocaleString("en-IN")}`}
+                            value={`Rs.${Number(getItemTotal(item).toFixed(2)).toLocaleString("en-IN")}`}
                             readOnly
                             className="text-right font-medium"
                           />
@@ -510,16 +509,15 @@ function Finance() {
                 <p className="mb-3 text-sm font-medium">Summary</p>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Subtotal</span>
-                    <span>Rs.{invoiceTotals.subtotal.toLocaleString("en-IN")}</span>
+                    <span>Subtotal</span><span>Rs.{Number(invoiceTotals.subtotal.toFixed(2)).toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Tax</span>
-                    <span>Rs.{invoiceTotals.taxAmount.toLocaleString("en-IN")}</span>
+                    <span>Tax</span><span>Rs.{Number(invoiceTotals.taxAmount.toFixed(2)).toLocaleString("en-IN")}
+                    </span>
                   </div>
                   <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
-                    <span>Total</span>
-                    <span>Rs.{invoiceTotals.total.toLocaleString("en-IN")}</span>
+                    <span>Total</span><span>Rs.{Number(invoiceTotals.total.toFixed(2)).toLocaleString("en-IN")}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -643,9 +641,7 @@ function InvoicePreview({ invoice }: { invoice: InvoiceForm }) {
         <thead>
           <tr className={cn("border-b text-left", invoice.design === "professional" && "bg-slate-100")}>
             <th className="px-3 py-2 font-semibold">Name</th>
-            <th className="px-3 py-2 text-right font-semibold">Qty</th>
-            <th className="px-3 py-2 text-right font-semibold">Price</th>
-            <th className="px-3 py-2 text-right font-semibold">Tax</th>
+            <th className="px-3 py-2 text-right font-semibold">Qty</th><th className="px-3 py-2 text-right font-semibold">Price</th><th className="px-3 py-2 text-right font-semibold">Tax</th>
             <th className="px-3 py-2 text-right font-semibold">Total</th>
           </tr>
         </thead>
@@ -653,12 +649,12 @@ function InvoicePreview({ invoice }: { invoice: InvoiceForm }) {
           {invoice.items.map((item, index) => (
             <tr key={index} className="border-b">
               <td className="px-3 py-3">{item.name || "Untitled item"}</td>
-              <td className="px-3 py-3 text-right">{item.quantity}</td>
-              <td className="px-3 py-3 text-right">Rs.{item.price.toLocaleString("en-IN")}</td>
+              <td className="px-3 py-3 text-right">{Number(item.quantity.toFixed(2))}</td>
+              <td className="px-3 py-3 text-right">Rs.{Number(item.price.toFixed(2)).toLocaleString("en-IN")}</td>
               <td className="px-3 py-3 text-right">
-                Rs.{getItemTax(item).toLocaleString("en-IN")} ({item.tax}%)
+                Rs.{Number(getItemTax(item).toFixed(2)).toLocaleString("en-IN")} ({Number(item.tax.toFixed(2))}%)
               </td>
-              <td className="px-3 py-3 text-right">Rs.{getItemTotal(item).toLocaleString("en-IN")}</td>
+              <td className="px-3 py-3 text-right">Rs.{Number(getItemTotal(item).toFixed(2)).toLocaleString("en-IN")}</td>
             </tr>
           ))}
         </tbody>
@@ -667,9 +663,8 @@ function InvoicePreview({ invoice }: { invoice: InvoiceForm }) {
       <div className="ml-auto mt-6 w-full max-w-xs space-y-2 text-sm">
         <TotalRow label="Subtotal" value={totals.subtotal} />
         <TotalRow label="Tax" value={totals.taxAmount} />
-        <div className="flex justify-between border-t pt-2 text-base font-bold">
-          <span>Total</span>
-          <span>Rs.{totals.total.toLocaleString("en-IN")}</span>
+        <div className="flex justify-between border-t pt-2 text-base font-bold"><span>Total</span><span>Rs.{Number(totals.total.toFixed(2)).toLocaleString("en-IN")}
+          </span>
         </div>
       </div>
     </div>
@@ -680,7 +675,7 @@ function TotalRow({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex justify-between text-slate-600">
       <span>{label}</span>
-      <span>Rs.{value.toLocaleString("en-IN")}</span>
+      <span>Rs.{Number(value.toFixed(2)).toLocaleString("en-IN")}</span>
     </div>
   );
 }

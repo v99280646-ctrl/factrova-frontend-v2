@@ -117,7 +117,7 @@ export function Overview() {
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">{s.label}</p>
-                    <p className="mt-2 text-2xl font-bold tracking-tight">{s.value}</p>
+                    <p className="mt-2 text-2xl font-bold tracking-tight">{typeof s.value === 'number' ? Number(s.value.toFixed(2)).toLocaleString("en-IN") : s.value}</p>
                   </div>
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[image:var(--gradient-primary)] text-primary-foreground shadow-[var(--shadow-elegant)]">
                     <Icon className="h-5 w-5" />

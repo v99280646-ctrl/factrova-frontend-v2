@@ -133,7 +133,7 @@ function Services() {
                         </div>
                       </td>
                       <td className="px-4 py-3 font-semibold">
-                        ₹{Number(s.price).toLocaleString("en-IN")}
+                        ₹{Number(s.price.toFixed(2)).toLocaleString("en-IN")}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">per {s.unit}</td>
                       <td className="px-4 py-3 text-right">

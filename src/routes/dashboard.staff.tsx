@@ -62,16 +62,26 @@ function formatPerformanceDate(date: Date) {
 type StaffActivityResponse = {
   staff: StaffRow;
   month: string | null;
+  search: string;
   summary: {
     totalRecords: number;
     totalUsageEntries: number;
     totalConfiguredStages: number;
     totalAssignedProjects: number;
     totalMaterialsUsed: number;
+    totalLastMonthMaterialsUsed: number;
+  };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
   };
   records: Array<{
     id: string;
-    type: "usage" | "configuration" | "assignment";
+    type: "usage";
     date: string;
     projectId: string;
     projectCode: string;
@@ -103,7 +113,9 @@ function Staff() {
   const [editOpen, setEditOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<StaffRow | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<StaffRow | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState("2026-05");
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [activitySearch, setActivitySearch] = useState("");
+  const [activityPage, setActivityPage] = useState(1);
   const [selectedActivity, setSelectedActivity] = useState<StaffActivityResponse | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -143,7 +155,12 @@ function Staff() {
         const data = await apiRequest<StaffActivityResponse>(
           `/staff/${selectedStaff.id}/activity`,
           {
-            query: { month: selectedMonth },
+            query: {
+              month: selectedMonth,
+              search: activitySearch || undefined,
+              page: activityPage,
+              limit: 10,
+            },
           },
         );
         if (!active) return;
@@ -160,7 +177,11 @@ function Staff() {
     return () => {
       active = false;
     };
-  }, [selectedMonth, selectedStaff?.id]);
+  }, [activityPage, activitySearch, selectedMonth, selectedStaff?.id]);
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activitySearch, selectedMonth, selectedStaff?.id]);
 
   const add = async () => {
     if (!form.name.trim()) return toast.error("Name is required");
@@ -298,7 +319,47 @@ function Staff() {
           <TabsContent value="performance" className="mt-0 focus-visible:outline-none">
             <Card className="border-border/60 shadow-[var(--shadow-card)]">
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                {/* Mobile view: Staff Cards */}
+                <div className="md:hidden divide-y divide-border/50">
+                  {list.map((staff) => (
+                    <div
+                      key={staff.id}
+                      className="p-4 space-y-3 cursor-pointer hover:bg-muted/30 transition-colors"
+                      onClick={() => setSelectedStaff(staff)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[image:var(--gradient-soft)] text-primary">
+                            <ShieldCheck className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium">{staff.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px]">{staff.role}</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">Usage</p>
+                          <p className="font-semibold">
+                            {selectedStaff?.id === staff.id && selectedActivity 
+                              ? Number(selectedActivity.summary.totalMaterialsUsed.toFixed(2)) 
+                              : "Select to view"}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-muted-foreground">Projects</p>
+                          <p className="font-semibold">
+                            {selectedStaff?.id === staff.id && selectedActivity 
+                              ? selectedActivity.summary.totalAssignedProjects 
+                              : "-"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop view: Table */}
+                <div className="hidden md:block overflow-x-auto">
                   <div className="min-w-[800px] lg:min-w-full">
                     <table className="w-full text-sm">
                       <thead>
@@ -309,7 +370,7 @@ function Staff() {
                             Materials / Usage
                           </th>
                           <th className="px-4 py-3 text-right font-medium w-[140px]">
-                            Config / Assigned
+                            Projects / Logs
                           </th>
                           <th className="px-4 py-3 text-right font-medium w-[160px]">
                             Last Update Date
@@ -351,30 +412,32 @@ function Staff() {
                               </td>
                               <td className="px-4 py-3 text-right">
                                 {selectedStaff?.id === staff.id && selectedActivity ? (
-                                  <>
+                                  <div className="flex flex-col">
                                     <span className="font-semibold">
-                                      {selectedActivity.summary.totalMaterialsUsed}
+                                      {Number(selectedActivity.summary.totalMaterialsUsed.toFixed(2))}
                                     </span>
+                                    <span className="text-[10px] text-muted-foreground">units</span>
                                     <span className="text-muted-foreground">
                                       {" "}
                                       / {selectedActivity.summary.totalUsageEntries}
                                     </span>
-                                  </>
+                                  </div>
                                 ) : (
                                   <span className="text-muted-foreground">Open records</span>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-right">
                                 {selectedStaff?.id === staff.id && selectedActivity ? (
-                                  <>
+                                  <div className="flex flex-col">
                                     <span className="font-semibold">
-                                      {selectedActivity.summary.totalConfiguredStages}
+                                      {selectedActivity.summary.totalAssignedProjects}
                                     </span>
+                                    <span className="text-[10px] text-muted-foreground">projects</span>
                                     <span className="text-muted-foreground">
                                       {" "}
-                                      / {selectedActivity.summary.totalAssignedProjects}
+                                      / {selectedActivity.summary.totalRecords}
                                     </span>
-                                  </>
+                                  </div>
                                 ) : (
                                   <span className="text-muted-foreground">Open records</span>
                                 )}
@@ -436,7 +499,50 @@ function Staff() {
           <TabsContent value="manage-access" className="mt-0 focus-visible:outline-none">
             <Card className="border-border/60 shadow-[var(--shadow-card)]">
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
+                {/* Mobile View: Access Cards */}
+                <div className="md:hidden divide-y divide-border/50">
+                  {list.map((s) => (
+                    <div key={s.id} className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[image:var(--gradient-soft)] text-primary">
+                            <ShieldCheck className="h-4 w-4" />
+                          </div>
+                          <span className="font-medium">{s.name}</span>
+                        </div>
+                        <Switch
+                          checked={s.active}
+                          disabled={!canUpdate}
+                          onCheckedChange={() => toggle(s)}
+                        />
+                      </div>
+                      <div className="text-xs space-y-1">
+                        <p className="text-muted-foreground truncate">{s.email || "No email"}</p>
+                        <p className="font-medium">{s.role}</p>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap gap-1">
+                          {Object.entries(s.pagePermissions || {})
+                            .filter(([_, actions]) => actions.length > 0)
+                            .slice(0, 3)
+                            .map(([page]) => (
+                              <Badge key={page} variant="secondary" className="capitalize text-[10px]">
+                                {page}
+                              </Badge>
+                            ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {canEdit && (
+                            <Button variant="ghost" size="sm" className="h-8" onClick={() => editStaff(s)}>Edit</Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop View: Table */}
+                <div className="hidden md:block overflow-x-auto">
                   <div className="min-w-[800px] lg:min-w-full">
                     <table className="w-full text-sm">
                       <thead>
@@ -698,7 +804,16 @@ function Staff() {
         </Dialog>
 
         {/* Performance Sheet */}
-        <Sheet open={!!selectedStaff} onOpenChange={(next) => !next && setSelectedStaff(null)}>
+        <Sheet
+          open={!!selectedStaff}
+          onOpenChange={(next) => {
+            if (!next) {
+              setSelectedStaff(null);
+              setActivitySearch("");
+              setActivityPage(1);
+            }
+          }}
+        >
           <SheetContent
             side="right"
             className="w-full overflow-y-auto p-0 sm:max-w-2xl lg:max-w-3xl"
@@ -715,31 +830,25 @@ function Staff() {
                 <div className="space-y-5 px-6 py-5">
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-lg border border-border bg-muted/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Usage records
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Current month
                       </p>
                       <p className="mt-1 text-2xl font-bold">
-                        {selectedActivity?.summary.totalUsageEntries ?? 0}
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {" "}
-                          / {selectedActivity?.summary.totalMaterialsUsed ?? 0}
-                        </span>
+                        {Number((selectedActivity?.summary.totalMaterialsUsed ?? 0).toFixed(2))}
                       </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">Total processed units</p>
                     </div>
                     <div className="rounded-lg border border-border bg-muted/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Configured / assigned
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        Last month
                       </p>
                       <p className="mt-1 text-2xl font-bold">
-                        {selectedActivity?.summary.totalAssignedProjects ?? 0}
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {" "}
-                          / {selectedActivity?.summary.totalConfiguredStages ?? 0}
-                        </span>
+                        {Number((selectedActivity?.summary.totalLastMonthMaterialsUsed ?? 0).toFixed(2))}
                       </p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">Prev. month performance</p>
                     </div>
                     <div className="rounded-lg border border-border bg-muted/30 p-4">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                         Last update
                       </p>
                       <p className="mt-1 text-base font-semibold break-words">
@@ -756,7 +865,19 @@ function Staff() {
                       id="performance-month"
                       type="month"
                       value={selectedMonth}
-                      onChange={(e) => setSelectedMonth(e.target.value || "2026-05")}
+                      onChange={(e) =>
+                        setSelectedMonth(e.target.value || new Date().toISOString().slice(0, 7))
+                      }
+                    />
+                  </div>
+
+                  <div className="max-w-md space-y-1.5">
+                    <Label htmlFor="staff-log-search">Search Logs</Label>
+                    <Input
+                      id="staff-log-search"
+                      value={activitySearch}
+                      onChange={(e) => setActivitySearch(e.target.value)}
+                      placeholder="Search project, stage, note, or material"
                     />
                   </div>
 
@@ -768,10 +889,9 @@ function Staff() {
                             <thead>
                               <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
                                 <th className="px-4 py-3 font-medium w-[180px]">Date</th>
-                                <th className="px-4 py-3 font-medium w-[240px]">Project / Stage</th>
-                                <th className="px-4 py-3 font-medium w-[160px]">Record Type</th>
+                                {/* <th className="px-4 py-3 font-medium w-[160px]">Record Type</th> */}
                                 <th className="px-4 py-3 text-right font-medium w-[180px]">
-                                  Material Count
+                                  Count Of Completed Meterial
                                 </th>
                               </tr>
                             </thead>
@@ -799,20 +919,10 @@ function Staff() {
                                 )}
                               {!activityLoading &&
                                 (selectedActivity?.records ?? []).map((row) => {
-                                  const materialCount =
-                                    row.type === "usage"
-                                      ? (row.materials ?? []).reduce(
-                                          (sum, material) =>
-                                            sum + Number(material.quantityUsed ?? 0),
-                                          0,
-                                        )
-                                      : (row.materialCount ?? row.materials?.length ?? 0);
-                                  const recordTypeLabel =
-                                    row.type === "usage"
-                                      ? "Usage"
-                                      : row.type === "configuration"
-                                        ? "Configured"
-                                        : "Assigned";
+                                  const materialCount = (row.materials ?? []).reduce(
+                                    (sum, material) => sum + Number(material.quantityUsed ?? 0),
+                                    0,
+                                  );
 
                                   return (
                                     <tr
@@ -822,7 +932,7 @@ function Staff() {
                                       <td className="px-4 py-3 font-medium whitespace-nowrap">
                                         {formatDateTimeCompact(row.date)}
                                       </td>
-                                      <td className="px-4 py-3">
+                                      {/* <td className="px-4 py-3">
                                         <div className="space-y-1">
                                           <p className="font-medium">
                                             {row.projectCode} - {row.projectName}
@@ -834,10 +944,10 @@ function Staff() {
                                         </div>
                                       </td>
                                       <td className="px-4 py-3">
-                                        <Badge variant="secondary">{recordTypeLabel}</Badge>
-                                      </td>
+                                        <Badge variant="secondary">Usage</Badge>
+                                      </td> */}
                                       <td className="px-4 py-3 text-right font-semibold">
-                                        {materialCount}
+                                      {Number(materialCount.toFixed(2))}
                                       </td>
                                     </tr>
                                   );
@@ -848,6 +958,37 @@ function Staff() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {selectedActivity?.records.length ?? 0} of{" "}
+                      {selectedActivity?.pagination.total ?? 0} logs
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!selectedActivity?.pagination.hasPrev || activityLoading}
+                        onClick={() => setActivityPage((page) => Math.max(1, page - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {selectedActivity?.pagination.page ?? 1}
+                        {selectedActivity?.pagination.totalPages
+                          ? ` of ${selectedActivity.pagination.totalPages}`
+                          : ""}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!selectedActivity?.pagination.hasNext || activityLoading}
+                        onClick={() => setActivityPage((page) => page + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </>
             )}

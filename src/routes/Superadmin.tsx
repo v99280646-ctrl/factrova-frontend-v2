@@ -152,7 +152,7 @@ function SuperadminDashboard() {
     })),
     ...(summary?.recentPayments ?? []).slice(0, 2).map((payment) => ({
       title: `${payment.factoryId?.name || "Factory"} payment ${payment.status}`,
-      detail: `${currency(payment.amount, payment.currency)} on ${payment.paidAt ? new Date(payment.paidAt).toLocaleDateString() : "unknown date"}.`,
+      detail: `${currency(Number(payment.amount.toFixed(2)), payment.currency)} on ${payment.paidAt ? new Date(payment.paidAt).toLocaleDateString() : "unknown date"}.`,
       time: "Recent",
       status:
         payment.status === "paid" ? "success" : payment.status === "failed" ? "danger" : "warning",
