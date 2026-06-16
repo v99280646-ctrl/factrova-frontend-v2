@@ -38,7 +38,13 @@ async function request<T>(baseUrl: string, path: string, options: RequestOptions
   });
 
   const payload = (await response.json().catch(() => ({}))) as Partial<ApiResponse<T>>;
-  if (response.status === 401) clearAuthSession();
+  if (response.status === 401) {
+    clearAuthSession();
+    // If token is expired, force user to login.
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    }
+  }
   if (!response.ok || payload.success === false) {
     throw new Error(payload.message || `API request failed: ${response.status}`);
   }
