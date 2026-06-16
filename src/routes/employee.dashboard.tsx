@@ -29,13 +29,11 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
-import { type Project, type ProjectStatus, type StockItem } from "@/lib/data";
+import { type Project, type ProjectStatus } from "@/lib/data";
 import { canPageAction } from "@/lib/auth";
 import { api, apiRequest } from "@/lib/api";
 import { formatDateTimeCompact } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   CalendarDays,
   ChevronLeft,
@@ -47,7 +45,6 @@ import {
   Package,
   MoreVertical,
   Plus,
-  Search,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -76,6 +73,7 @@ type StageMaterial = {
 };
 type UsageHistoryRecord = {
   id: string;
+  userId?: string;
   staffName?: string;
   role?: string;
   note?: string;
@@ -125,6 +123,31 @@ type WorkProject = Project & {
   materials: ProjectMaterial[];
   workflowStages: WorkflowStage[];
 };
+type ApiWasteMaterial = {
+  id: string;
+  code: string;
+  material: string;
+  projectId?: string | null;
+  projectName?: string;
+  usedForProjectId?: string | null;
+  usedForProjectName?: string;
+  size: string;
+  note?: string;
+};
+type WasteProjectItem = {
+  id: string;
+  backendId: string;
+  material: string;
+  projectId?: string | null;
+  projectName?: string;
+  usedForProjectId?: string | null;
+  usedForProjectName?: string;
+  size: string;
+  note?: string;
+};
+type NextWasteCode = {
+  code: string;
+};
 
 const materialTypes = ["MDF", "Plywood", "Laminate", "Veneer", "Acrylic", "Edge Band", "Hardware"];
 const stageStatusOptions = ["Not started", "In progress", "On hold", "Completed"];
@@ -162,6 +185,67 @@ function emptyWasteMaterial(): WasteMaterial {
   };
 }
 
+function mapWasteMaterial(row: ApiWasteMaterial): WasteProjectItem {
+  return {
+    id: row.code,
+    backendId: row.id,
+    material: row.material,
+    projectId: row.projectId ?? null,
+    projectName: row.projectName || "",
+    usedForProjectId: row.usedForProjectId ?? null,
+    usedForProjectName: row.usedForProjectName || "",
+    size: row.size ?? "",
+    note: row.note ?? "",
+  };
+}
+
+function projectWasteLabel(project: WorkProject) {
+  return `${project.id} - ${project.name}`;
+}
+
+function matchesProjectWaste(
+  project: WorkProject,
+  projectId?: string | null,
+  projectName?: string,
+) {
+  return projectId === project.backendId || (projectName ?? "").startsWith(`${project.id} -`);
+}
+
+function nextWasteCodeValue(current?: string) {
+  const match = /(?:\D*)(\d+)$/u.exec(current ?? "");
+  const nextNumber = match ? Number(match[1]) + 1 : 1;
+  return `W${String(nextNumber).padStart(3, "0")}`;
+}
+
+function isTodayForEmployee(entry: UsageHistoryRecord, employeeName: string) {
+  if (!employeeName.trim()) return false;
+  const createdAt = new Date(entry.createdAt);
+  if (Number.isNaN(createdAt.getTime())) return false;
+  const now = new Date();
+  return (
+    createdAt.getFullYear() === now.getFullYear() &&
+    createdAt.getMonth() === now.getMonth() &&
+    createdAt.getDate() === now.getDate() &&
+    entry.staffName?.trim().toLowerCase() === employeeName.trim().toLowerCase()
+  );
+}
+
+function todayUsageMap(stage: WorkflowStage | null | undefined, employeeName: string) {
+  const todayRecord = (stage?.usageHistory ?? []).find((entry) =>
+    isTodayForEmployee(entry, employeeName),
+  );
+  return Object.fromEntries(
+    (stage?.materials ?? []).map((material) => [
+      material.projectMaterialId,
+      String(
+        todayRecord?.materials.find(
+          (entryMaterial) => entryMaterial.projectMaterialId === material.projectMaterialId,
+        )?.quantityUsed ?? "",
+      ),
+    ]),
+  );
+}
+
 function EmployeeDashboard() {
   const canUpdate = canPageAction("projects", "update");
   const canDelete = canPageAction("projects", "delete");
@@ -177,28 +261,17 @@ function EmployeeDashboard() {
   const [stageStatus, setStageStatus] = useState("In progress");
   const [dailyUpdateView, setDailyUpdateView] = useState<DailyUpdateView>("menu");
   const [materialQuantities, setMaterialQuantities] = useState<Record<string, string>>({});
-  const [wasteMaterialRows, setWasteMaterialRows] = useState<WasteMaterial[]>([emptyWasteMaterial()]);
-  const [hasWasteMaterials, setHasWasteMaterials] = useState(false);
+  const [wasteMaterialRows, setWasteMaterialRows] = useState<WasteMaterial[]>([
+    emptyWasteMaterial(),
+  ]);
   const [wasteMaterialMode, setWasteMaterialMode] = useState<WasteMaterialMode>("create");
-  const [wasteCreateType, setWasteCreateType] = useState("MDF");
-  const [wasteCreateSize, setWasteCreateSize] = useState("");
-  const [wasteCreateNote, setWasteCreateNote] = useState("");
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
-  const [stockSearchOpen, setStockSearchOpen] = useState(false);
-  const [stockSearch, setStockSearch] = useState("");
-  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
+  const [wasteRows, setWasteRows] = useState<WasteProjectItem[]>([]);
+  const [nextWasteCode, setNextWasteCode] = useState("W001");
+  const [selectedWasteIds, setSelectedWasteIds] = useState<string[]>([]);
+  const [wasteSearch, setWasteSearch] = useState("");
   const [createdWasteMessage, setCreatedWasteMessage] = useState<{
-    type: string;
-    size: string;
-    note: string;
+    count: number;
   } | null>(null);
-
-  const filteredStockItems = stockItems.filter((item) =>
-    [item.id, item.material, item.type, item.thickness, item.unit]
-      .join(" ")
-      .toLowerCase()
-      .includes(stockSearch.toLowerCase()),
-  );
 
   useEffect(() => {
     localStorage.setItem("factrova-login-role", "staff");
@@ -207,12 +280,14 @@ function EmployeeDashboard() {
 
     const loadProjects = async () => {
       try {
-        const [rows, stockRows] = await Promise.all([
+        const [rows, wasteItems, nextCode] = await Promise.all([
           api.list<ApiProject>("projects", { scope: "mine" }),
-          api.list<StockItem>("stock"),
+          api.list<ApiWasteMaterial>("waste"),
+          apiRequest<NextWasteCode>("/waste/next-code"),
         ]);
         setProjects(rows.map(projectFromApi));
-        setStockItems(stockRows ?? []);
+        setWasteRows((wasteItems ?? []).map(mapWasteMaterial));
+        setNextWasteCode(nextCode.code || "W001");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Unable to load projects");
       }
@@ -277,17 +352,18 @@ function EmployeeDashboard() {
     setSelectedProject(detail);
     setDailyUpdateView("menu");
     setMaterialQuantities(
-      Object.fromEntries(detail.materials.map((material) => [material.id, String(material.quantity)])),
-    );
-    setWasteMaterialRows([emptyWasteMaterial()]);
-    setUsageQuantities(
       Object.fromEntries(
-        (stage.materials ?? []).map((material) => [material.projectMaterialId, ""]),
+        detail.materials.map((material) => [material.id, String(material.quantity)]),
       ),
     );
+    setWasteMaterialRows([emptyWasteMaterial()]);
+    setUsageQuantities(todayUsageMap(stage, employeeName));
     setUsageNote("");
     setStageStatus(stage?.staffStatus || "In progress");
     setWasteMaterialMode("create");
+    setSelectedWasteIds([]);
+    setWasteSearch("");
+    setCreatedWasteMessage(null);
   };
 
   const openDailyUpdate = (project: WorkProject) => {
@@ -300,6 +376,7 @@ function EmployeeDashboard() {
       )
     : null;
   const stageMaterials = currentStage?.materials ?? [];
+  const todayUsageByMaterial = todayUsageMap(currentStage, employeeName);
   const stageProgressPercent =
     currentStage?.total && currentStage.total > 0
       ? Math.min(100, Math.round((currentStage.completed / currentStage.total) * 100))
@@ -334,26 +411,108 @@ function EmployeeDashboard() {
       const stage = nextProject.workflowStages.find(
         (item) => item.name.toLowerCase() === stageName.toLowerCase(),
       );
-      setUsageQuantities(
-        Object.fromEntries(
-          (stage?.materials ?? []).map((material) => [material.projectMaterialId, ""]),
-        ),
-      );
+      setUsageQuantities(todayUsageMap(stage, employeeName));
       toast.success("Stage material requirement saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to save stage materials");
     }
   };
 
-  const saveCreatedWasteMaterial = () => {
-    const type = wasteCreateType.trim();
-    const size = wasteCreateSize.trim();
-    const note = wasteCreateNote.trim();
-    if (!type) {
-      toast.error("Please select a material type");
+  const availableWaste = selectedProject ? wasteRows.filter((row) => !row.usedForProjectId) : [];
+  const filteredAvailableWaste = availableWaste.filter((row) =>
+    [row.id, row.material, row.size, row.note]
+      .join(" ")
+      .toLowerCase()
+      .includes(wasteSearch.toLowerCase()),
+  );
+
+  const saveCreatedWasteMaterial = async () => {
+    if (!selectedProject) return;
+
+    const rowsToCreate = wasteMaterialRows
+      .map((row) => ({
+        type: row.type.trim(),
+        size: row.size.trim(),
+        note: row.note.trim(),
+      }))
+      .filter((row) => row.type);
+
+    if (!rowsToCreate.length) {
+      toast.error("Add at least one waste material");
       return;
     }
-    setCreatedWasteMessage({ type, size, note });
+
+    try {
+      let runningCode = nextWasteCode;
+      const createdItems: WasteProjectItem[] = [];
+
+      for (const row of rowsToCreate) {
+        const saved = await api.create<ApiWasteMaterial>("waste", {
+          code: runningCode,
+          material: row.type,
+          projectId: selectedProject.backendId,
+          projectName: projectWasteLabel(selectedProject),
+          size: row.size || null,
+          note: row.note || null,
+        });
+        createdItems.push(mapWasteMaterial(saved));
+        runningCode = nextWasteCodeValue(runningCode);
+      }
+
+      setWasteRows((current) => [...createdItems.reverse(), ...current]);
+      setNextWasteCode(runningCode);
+      setWasteMaterialRows([emptyWasteMaterial()]);
+      setCreatedWasteMessage({ count: createdItems.length });
+      toast.success(
+        createdItems.length === 1
+          ? "Waste material created"
+          : `${createdItems.length} waste materials created`,
+      );
+      setSelectedProject(null);
+      setDailyUpdateView("menu");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create waste material");
+    }
+  };
+
+  const saveUsedWasteMaterials = async () => {
+    if (!selectedProject) return;
+    if (!selectedWasteIds.length) {
+      toast.error("Select at least one waste material");
+      return;
+    }
+
+    try {
+      const updatedRows: WasteProjectItem[] = [];
+      for (const wasteId of selectedWasteIds) {
+        const wasteItem = availableWaste.find((row) => row.backendId === wasteId);
+        if (!wasteItem?.backendId) continue;
+        const updated = await api.update<ApiWasteMaterial>("waste", wasteItem.backendId, {
+          usedForProjectId: selectedProject.backendId,
+          usedForProjectName: projectWasteLabel(selectedProject),
+        });
+        updatedRows.push(mapWasteMaterial(updated));
+      }
+
+      if (!updatedRows.length) {
+        toast.error("Selected waste material was not found");
+        return;
+      }
+
+      const updatedById = new Map(updatedRows.map((row) => [row.backendId, row]));
+      setWasteRows((current) => current.map((row) => updatedById.get(row.backendId) ?? row));
+      setSelectedWasteIds([]);
+      setWasteSearch("");
+      toast.success(
+        updatedRows.length === 1
+          ? "Waste material used"
+          : `${updatedRows.length} waste materials used`,
+      );
+      setSelectedProject(null);
+      setDailyUpdateView("menu");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to use waste material");
+    }
   };
 
   const saveUsage = async () => {
@@ -363,8 +522,13 @@ function EmployeeDashboard() {
       .map((material) => ({
         projectMaterialId: material.projectMaterialId,
         quantityUsed: Number(usageQuantities[material.projectMaterialId]) || 0,
+        previousTodayUsed: Number(todayUsageByMaterial[material.projectMaterialId]) || 0,
       }))
-      .filter((material) => material.quantityUsed > 0);
+      .filter((material) => material.quantityUsed > 0 || material.previousTodayUsed > 0)
+      .map(({ projectMaterialId, quantityUsed }) => ({
+        projectMaterialId,
+        quantityUsed,
+      }));
     const hasUsage = materials.length > 0;
     const hasStageStatus = Boolean(stageStatus.trim());
     const hasNote = Boolean(usageNote.trim());
@@ -392,15 +556,13 @@ function EmployeeDashboard() {
       const stage = nextProject.workflowStages.find(
         (item) => item.name.toLowerCase() === stageName.toLowerCase(),
       );
-      setUsageQuantities(
-        Object.fromEntries(
-          (stage?.materials ?? []).map((material) => [material.projectMaterialId, ""]),
-        ),
-      );
+      setUsageQuantities(todayUsageMap(stage, employeeName));
       setStageStatus(stage?.staffStatus || stageStatus);
       setUsageNote("");
       setWasteMaterialMode("create");
       toast.success("Project update saved");
+      setSelectedProject(null);
+      setDailyUpdateView("menu");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to update usage");
     }
@@ -608,7 +770,8 @@ function EmployeeDashboard() {
                                 style={{ width: `${project.progress}%` }}
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground">{Number(project.progress.toFixed(2))}%
+                            <span className="text-xs text-muted-foreground">
+                              {Number(project.progress.toFixed(2))}%
                             </span>
                           </div>
                         </td>
@@ -756,7 +919,7 @@ function EmployeeDashboard() {
                       ? "Required Materials"
                       : dailyUpdateView === "waste"
                         ? "Waste Materials"
-                      : "Daily Update"}
+                        : "Daily Update"}
                 </DialogTitle>
               </div>
               {selectedProject && (
@@ -846,6 +1009,10 @@ function EmployeeDashboard() {
                 ) : (
                   stageMaterials.map((material) => {
                     const remaining = material.requiredQuantity - material.completedQuantity;
+                    const currentDayUsed = Number(
+                      todayUsageByMaterial[material.projectMaterialId] ?? 0,
+                    );
+                    const editableLimit = Math.max(0, remaining + currentDayUsed);
                     return (
                       <div
                         key={material.projectMaterialId}
@@ -859,6 +1026,9 @@ function EmployeeDashboard() {
                           <p className="mt-1 text-xs text-muted-foreground">
                             Required: {Number(material.requiredQuantity.toFixed(2))} {material.unit}
                           </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Today used: {Number(currentDayUsed.toFixed(2))} {material.unit}
+                          </p>
                         </div>
 
                         <div className="space-y-1.5 justify-self-end w-[110px] sm:w-[180px]">
@@ -866,8 +1036,8 @@ function EmployeeDashboard() {
                           <Input
                             type="number"
                             min={0}
-                            max={remaining}
-                            disabled={!canUpdate || remaining <= 0}
+                            max={editableLimit}
+                            disabled={!canUpdate || editableLimit <= 0}
                             value={usageQuantities[material.projectMaterialId] ?? ""}
                             onChange={(event) =>
                               setUsageQuantities((current) => ({
@@ -943,7 +1113,11 @@ function EmployeeDashboard() {
                         ? "bg-blue-600 text-white hover:bg-blue-700"
                         : "bg-blue-50 text-blue-700 hover:bg-blue-100",
                     )}
-                    onClick={() => setWasteMaterialMode("create")}
+                    onClick={() => {
+                      setWasteMaterialMode("create");
+                      setSelectedWasteIds([]);
+                      setWasteSearch("");
+                    }}
                   >
                     Create Material
                   </Button>
@@ -955,7 +1129,10 @@ function EmployeeDashboard() {
                         ? "bg-blue-600 text-white hover:bg-blue-700"
                         : "bg-blue-50 text-blue-700 hover:bg-blue-100",
                     )}
-                    onClick={() => setWasteMaterialMode("use")}
+                    onClick={() => {
+                      setWasteMaterialMode("use");
+                      setCreatedWasteMessage(null);
+                    }}
                   >
                     Use Material
                   </Button>
@@ -970,118 +1147,190 @@ function EmployeeDashboard() {
                           <div className="min-w-0">
                             <p className="text-sm font-semibold">Material saved</p>
                             <p className="mt-1 text-sm text-emerald-800">
-                              {createdWasteMessage.type}
-                              {createdWasteMessage.size ? `, size ${createdWasteMessage.size}` : ""}
-                              {createdWasteMessage.note ? `, note ${createdWasteMessage.note}` : ""}
+                              {createdWasteMessage.count === 1
+                                ? "1 waste material created"
+                                : `${createdWasteMessage.count} waste materials created`}
                             </p>
                             <p className="mt-1 text-xs font-medium text-emerald-700">
                               Ready for the next material
                             </p>
                           </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="h-8 px-2 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                            onClick={() => setCreatedWasteMessage(null)}
+                          >
+                            Add more
+                          </Button>
                         </div>
                       </div>
                     )}
 
-                    {!createdWasteMessage && (
-                      <>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Type</Label>
-                          <Select value={wasteCreateType} onValueChange={setWasteCreateType}>
-                            <SelectTrigger className="h-12 rounded-xl">
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {materialTypes.map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Size</Label>
-                          <Input
-                            value={wasteCreateSize}
-                            onChange={(event) => setWasteCreateSize(event.target.value)}
-                            placeholder="Enter size"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Note</Label>
-                          <Textarea
-                            value={wasteCreateNote}
-                            onChange={(event) => setWasteCreateNote(event.target.value)}
-                            placeholder="Add a note"
-                            rows={3}
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          className="h-12 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-                          onClick={saveCreatedWasteMaterial}
+                    <>
+                      {wasteMaterialRows.map((row, index) => (
+                        <div
+                          key={`waste-create-${index}`}
+                          className="space-y-3 rounded-xl border border-border/70 p-3"
                         >
-                          Create
-                        </Button>
-                      </>
-                    )}
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium">Waste material {index + 1}</p>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={wasteMaterialRows.length === 1}
+                              onClick={() =>
+                                setWasteMaterialRows((current) =>
+                                  current.filter((_, rowIndex) => rowIndex !== index),
+                                )
+                              }
+                            >
+                              <Trash2 className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Type</Label>
+                            <Select
+                              value={row.type}
+                              onValueChange={(value) =>
+                                setWasteMaterialRows((current) =>
+                                  current.map((item, rowIndex) =>
+                                    rowIndex === index ? { ...item, type: value } : item,
+                                  ),
+                                )
+                              }
+                            >
+                              <SelectTrigger className="h-12 rounded-xl">
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {materialTypes.map((type) => (
+                                  <SelectItem key={type} value={type}>
+                                    {type}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Size</Label>
+                            <Input
+                              value={row.size}
+                              onChange={(event) =>
+                                setWasteMaterialRows((current) =>
+                                  current.map((item, rowIndex) =>
+                                    rowIndex === index
+                                      ? { ...item, size: event.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              placeholder="Enter size"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Note</Label>
+                            <Textarea
+                              value={row.note}
+                              onChange={(event) =>
+                                setWasteMaterialRows((current) =>
+                                  current.map((item, rowIndex) =>
+                                    rowIndex === index
+                                      ? { ...item, note: event.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              placeholder="Add a note"
+                              rows={3}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-12 w-full rounded-xl"
+                        onClick={() =>
+                          setWasteMaterialRows((current) => [...current, emptyWasteMaterial()])
+                        }
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add another material
+                      </Button>
+                      <Button
+                        type="button"
+                        className="h-12 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                        onClick={() => void saveCreatedWasteMaterial()}
+                      >
+                        Create
+                      </Button>
+                    </>
                   </div>
                 ) : (
                   <div className="space-y-3 rounded-xl border border-border bg-card p-4">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Select material from stock</Label>
-                      <Popover open={stockSearchOpen} onOpenChange={setStockSearchOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            role="combobox"
-                            className="h-12 w-full justify-between rounded-xl"
-                          >
-                            <span className="truncate">
-                              {selectedStockItem
-                                ? `${selectedStockItem.material} ${selectedStockItem.type}${selectedStockItem.thickness ? ` ${selectedStockItem.thickness}` : ""}`
-                                : "Search stock items"}
-                            </span>
-                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[calc(100vw-2rem)] max-w-[420px] p-0" align="start">
-                          <Command>
-                            <CommandInput
-                              value={stockSearch}
-                              onValueChange={setStockSearch}
-                              placeholder="Search stock..."
-                            />
-                            <CommandList>
-                              <CommandEmpty>No stock items found.</CommandEmpty>
-                              <CommandGroup>
-                                {filteredStockItems.map((item) => (
-                                  <CommandItem
-                                    key={item.id}
-                                    value={`${item.material} ${item.type} ${item.thickness ?? ""} ${item.unit}`}
-                                    onSelect={() => {
-                                      setSelectedStockItem(item);
-                                      setStockSearchOpen(false);
-                                    }}
-                                  >
-                                    <div className="flex min-w-0 flex-1 flex-col">
-                                      <span className="truncate text-sm font-medium">
-                                        {item.material} {item.type}
-                                        {item.thickness ? ` ${item.thickness}` : ""}
-                                      </span>
-                                      <span className="truncate text-xs text-muted-foreground">
-                                        Available: {item.quantity} {item.unit}
-                                      </span>
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                      <Label className="text-xs">Search available waste</Label>
+                      <Input
+                        value={wasteSearch}
+                        onChange={(event) => setWasteSearch(event.target.value)}
+                        placeholder="Search waste material"
+                      />
                     </div>
+                    <div className="space-y-2">
+                      {filteredAvailableWaste.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                          No available waste materials found.
+                        </div>
+                      ) : (
+                        filteredAvailableWaste.map((item) => {
+                          const checked = selectedWasteIds.includes(item.backendId);
+                          return (
+                            <label
+                              key={item.backendId}
+                              className="flex items-start gap-3 rounded-xl border border-border p-3"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(value) =>
+                                  setSelectedWasteIds((current) =>
+                                    value
+                                      ? [...current, item.backendId]
+                                      : current.filter((id) => id !== item.backendId),
+                                  )
+                                }
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium">
+                                  {item.id} - {item.material}
+                                </p>
+                                {item.size ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Size: {item.size}
+                                  </p>
+                                ) : null}
+                                {item.note ? (
+                                  <p className="mt-1 text-xs text-muted-foreground">
+                                    Note: {item.note}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      className="h-12 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                      disabled={filteredAvailableWaste.length === 0}
+                      onClick={() => void saveUsedWasteMaterials()}
+                    >
+                      Use selected waste
+                    </Button>
                   </div>
                 )}
               </div>
@@ -1110,15 +1359,11 @@ function EmployeeDashboard() {
                 }
                 if (dailyUpdateView === "waste") {
                   if (wasteMaterialMode === "create") {
-                    toast.success("Waste material created");
+                    void saveCreatedWasteMaterial();
                     return;
                   }
                   if (wasteMaterialMode === "use") {
-                    if (!selectedStockItem) {
-                      toast.error("Please select a stock item");
-                      return;
-                    }
-                    toast.success(`Using ${selectedStockItem.material} from stock`);
+                    void saveUsedWasteMaterials();
                     return;
                   }
                   return;
@@ -1127,10 +1372,10 @@ function EmployeeDashboard() {
               disabled={!canUpdate && dailyUpdateView !== "menu"}
             >
               {dailyUpdateView === "job"
-                  ? "Save changes"
-                  : dailyUpdateView === "materials"
-                    ? "Save materials"
-                    : "Save"}
+                ? "Save changes"
+                : dailyUpdateView === "materials"
+                  ? "Save materials"
+                  : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
