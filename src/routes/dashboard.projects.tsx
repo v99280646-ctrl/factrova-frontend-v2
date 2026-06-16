@@ -40,6 +40,7 @@ import {
   Check,
   Trash2,
   MoreVertical,
+  ClipboardList,
   CalendarDays,
   ChartLine,
   CircleDollarSign,
@@ -133,6 +134,7 @@ type ApiProject = {
   }[];
 };
 type ProjectAction = "view" | "update";
+type DailyUpdateStep = "menu" | "job";
 type ProjectMaterialStock = {
   material: string;
   required: number;
@@ -216,6 +218,12 @@ function Projects() {
   const [editProject, setEditProject] = useState<ApiProject | null>(null);
   const [editLoading, setEditLoading] = useState(false);
   const [projectAction, setProjectAction] = useState<ProjectAction>("view");
+  const [dailyUpdateProject, setDailyUpdateProject] = useState<ApiProject | null>(null);
+  const [dailyUpdateLoading, setDailyUpdateLoading] = useState(false);
+  const [dailyUpdateStep, setDailyUpdateStep] = useState<DailyUpdateStep>("menu");
+  const [dailyUpdateMaterialUsage, setDailyUpdateMaterialUsage] = useState<
+    Record<string, string>
+  >({});
   const [loginRole, setLoginRole] = useState<"admin" | "employee">("admin");
   const employeeMode = loginRole === "employee";
 
@@ -274,6 +282,25 @@ function Projects() {
       toast.error(error instanceof Error ? error.message : "Unable to load project");
     } finally {
       setEditLoading(false);
+    }
+  };
+
+  const openDailyUpdate = async (project: Project) => {
+    const backendId = projectBackendIds[project.id];
+    if (!backendId) return toast.error("Project backend id missing");
+    setDailyUpdateLoading(true);
+    setDailyUpdateStep("menu");
+    try {
+      const detail = await api.get<ApiProject>("projects", backendId);
+      setDailyUpdateProject(detail);
+      const materials = detail.workflowStages?.[0]?.materials ?? [];
+      setDailyUpdateMaterialUsage(
+        Object.fromEntries(materials.map((material) => [material.id ?? material.materialName, ""])),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to load project");
+    } finally {
+      setDailyUpdateLoading(false);
     }
   };
 
@@ -526,6 +553,10 @@ function Projects() {
                             <DropdownMenuItem onClick={() => openProjectAction(p, "view")}>
                               View
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openDailyUpdate(p)}>
+                              <ClipboardList className="mr-2 h-4 w-4" />
+                              Daily Update
+                            </DropdownMenuItem>
                             {canEdit && canUpdate ? (
                               <DropdownMenuItem onClick={() => openProjectAction(p, "update")}>
                                 Edit
@@ -571,6 +602,22 @@ function Projects() {
           project={previewProject}
           backendId={previewProject ? projectBackendIds[previewProject.id] : undefined}
           onClose={() => setPreviewProject(null)}
+        />
+      )}
+
+      {!employeeMode && (
+        <DailyUpdateDialog
+          open={Boolean(dailyUpdateProject) || dailyUpdateLoading}
+          step={dailyUpdateStep}
+          project={dailyUpdateProject}
+          usage={dailyUpdateMaterialUsage}
+          onStepChange={setDailyUpdateStep}
+          onUsageChange={setDailyUpdateMaterialUsage}
+          onClose={() => {
+            setDailyUpdateProject(null);
+            setDailyUpdateStep("menu");
+            setDailyUpdateMaterialUsage({});
+          }}
         />
       )}
 
@@ -1935,6 +1982,131 @@ function serviceToWorkflowStage(serviceName: string) {
   if (name.includes("pack")) return "Packing";
   if (name.includes("deliver")) return "Deliverd";
   return serviceName;
+}
+
+function DailyUpdateDialog({
+  open,
+  step,
+  project,
+  usage,
+  onStepChange,
+  onUsageChange,
+  onClose,
+}: {
+  open: boolean;
+  step: DailyUpdateStep;
+  project: ApiProject | null;
+  usage: Record<string, string>;
+  onStepChange: (step: DailyUpdateStep) => void;
+  onUsageChange: (usage: Record<string, string>) => void;
+  onClose: () => void;
+}) {
+  const materials = project?.workflowStages?.[0]?.materials ?? [];
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="bottom-0 left-0 right-0 top-auto flex max-h-[92dvh] max-w-none !translate-x-0 !translate-y-0 flex-col overflow-hidden rounded-b-none rounded-t-2xl p-0 duration-300 data-[state=closed]:!slide-out-to-bottom data-[state=closed]:!slide-out-to-left-0 data-[state=closed]:!slide-out-to-top-0 data-[state=closed]:!zoom-out-100 data-[state=open]:!slide-in-from-bottom data-[state=open]:!slide-in-from-left-0 data-[state=open]:!slide-in-from-top-0 data-[state=open]:!zoom-in-100 sm:left-[50%] sm:right-auto sm:top-[50%] sm:max-w-3xl sm:!translate-x-[-50%] sm:!translate-y-[-50%] sm:rounded-lg">
+        <DialogHeader className="shrink-0 border-b border-border bg-[image:var(--gradient-soft)] px-4 py-3 text-left sm:px-6 sm:py-4">
+          <DialogTitle className="text-lg sm:text-xl">Daily Update</DialogTitle>
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground sm:text-sm">
+            <span>Project Name: {project?.name ?? "—"}</span>
+            <span>Status: {project?.status ?? "—"}</span>
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+          {step === "menu" ? (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-border bg-card p-4">
+                <p className="text-sm font-medium">Stage of progress</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-[image:var(--gradient-primary)]"
+                      style={{ width: `${project?.progress ?? 0}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground">{project?.progress ?? 0}%</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {["Job Update", "Materials", "Waste Materials"].map((label) => (
+                  <Button
+                    key={label}
+                    type="button"
+                    variant="outline"
+                    className="h-14 w-full justify-start rounded-xl text-left text-base"
+                    onClick={() => {
+                      if (label === "Job Update") {
+                        onStepChange("job");
+                        return;
+                      }
+                      toast.message(`${label} is coming next`);
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Required materials</p>
+                  <p className="text-xs text-muted-foreground">Update how much was used</p>
+                </div>
+                <Button type="button" variant="ghost" size="sm" onClick={() => onStepChange("menu")}>
+                  Back
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {materials.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No required materials found for this project stage.
+                  </div>
+                ) : (
+                  materials.map((material) => {
+                    const key = material.id ?? material.materialName;
+                    return (
+                      <div key={key} className="rounded-xl border border-border bg-card p-4">
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{material.materialName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Required: {material.requiredQuantity} {material.unit}
+                            </p>
+                          </div>
+                          <Badge variant="secondary">{material.materialType}</Badge>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Used materials</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={usage[key] ?? ""}
+                            onChange={(e) =>
+                              onUsageChange({
+                                ...usage,
+                                [key]: e.target.value,
+                              })
+                            }
+                            placeholder="Enter used quantity"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 function CreateProjectDialog({

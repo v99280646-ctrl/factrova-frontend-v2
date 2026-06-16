@@ -29,12 +29,27 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
-import { type Project, type ProjectStatus } from "@/lib/data";
+import { type Project, type ProjectStatus, type StockItem } from "@/lib/data";
 import { canPageAction } from "@/lib/auth";
 import { api, apiRequest } from "@/lib/api";
 import { formatDateTimeCompact } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
-import { CalendarDays, FolderKanban, LogOut, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ClipboardList,
+  CheckCircle2,
+  FolderKanban,
+  Layers3,
+  LogOut,
+  Package,
+  MoreVertical,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/employee/dashboard")({
@@ -48,29 +63,7 @@ type WasteMaterial = {
   note: string;
 };
 type WasteMaterialMode = "create" | "use";
-type ExistingWasteMaterial = {
-  id: string;
-  backendId: string;
-  type: string;
-  size: string;
-  note?: string;
-  projectName?: string;
-  usedForProjectId?: string;
-};
-type ApiWasteMaterial = {
-  id: string;
-  code: string;
-  material: string;
-  projectId?: string | null;
-  projectName?: string;
-  usedForProjectId?: string | null;
-  usedForProjectName?: string;
-  size?: string;
-  note?: string;
-};
-type NextWasteCode = {
-  code: string;
-};
+type DailyUpdateView = "menu" | "job" | "materials" | "waste";
 type StageMaterial = {
   projectMaterialId: string;
   stockItemId?: string | null;
@@ -136,23 +129,6 @@ type WorkProject = Project & {
 const materialTypes = ["MDF", "Plywood", "Laminate", "Veneer", "Acrylic", "Edge Band", "Hardware"];
 const stageStatusOptions = ["Not started", "In progress", "On hold", "Completed"];
 
-function mapWasteMaterial(row: ApiWasteMaterial): ExistingWasteMaterial {
-  return {
-    id: row.code,
-    backendId: row.id,
-    type: row.material,
-    size: row.size ?? "",
-    note: row.note ?? "",
-    projectName: row.projectName ?? "",
-  };
-}
-
-function nextWasteCode(current?: string) {
-  const match = /(?:\D*)(\d+)$/u.exec(current ?? "");
-  const nextNumber = match ? Number(match[1]) + 1 : 1;
-  return `W${String(nextNumber).padStart(3, "0")}`;
-}
-
 function roleToStage(role: string) {
   const name = role.toLowerCase();
   if (name.includes("press")) return "Pressing";
@@ -188,6 +164,7 @@ function emptyWasteMaterial(): WasteMaterial {
 
 function EmployeeDashboard() {
   const canUpdate = canPageAction("projects", "update");
+  const canDelete = canPageAction("projects", "delete");
   const navigate = useNavigate();
   const [projects, setProjects] = useState<WorkProject[]>([]);
   const [allocationProject, setAllocationProject] = useState<WorkProject | null>(null);
@@ -198,19 +175,29 @@ function EmployeeDashboard() {
   const [usageQuantities, setUsageQuantities] = useState<Record<string, string>>({});
   const [usageNote, setUsageNote] = useState("");
   const [stageStatus, setStageStatus] = useState("In progress");
+  const [dailyUpdateView, setDailyUpdateView] = useState<DailyUpdateView>("menu");
+  const [materialQuantities, setMaterialQuantities] = useState<Record<string, string>>({});
+  const [wasteMaterialRows, setWasteMaterialRows] = useState<WasteMaterial[]>([emptyWasteMaterial()]);
   const [hasWasteMaterials, setHasWasteMaterials] = useState(false);
   const [wasteMaterialMode, setWasteMaterialMode] = useState<WasteMaterialMode>("create");
-  const [wasteMaterials, setWasteMaterials] = useState<WasteMaterial[]>([emptyWasteMaterial()]);
-  const [wasteMaterialSearch, setWasteMaterialSearch] = useState("");
-  const [selectedWasteMaterialIds, setSelectedWasteMaterialIds] = useState<string[]>([]);
-  const [existingWasteMaterials, setExistingWasteMaterials] = useState<ExistingWasteMaterial[]>([]);
-  const [nextWasteId, setNextWasteId] = useState("W001");
+  const [wasteCreateType, setWasteCreateType] = useState("MDF");
+  const [wasteCreateSize, setWasteCreateSize] = useState("");
+  const [wasteCreateNote, setWasteCreateNote] = useState("");
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [stockSearchOpen, setStockSearchOpen] = useState(false);
+  const [stockSearch, setStockSearch] = useState("");
+  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
+  const [createdWasteMessage, setCreatedWasteMessage] = useState<{
+    type: string;
+    size: string;
+    note: string;
+  } | null>(null);
 
-  const filteredWasteMaterials = existingWasteMaterials.filter((item) =>
-    [item.id, item.type, item.size, item.note, item.projectName]
+  const filteredStockItems = stockItems.filter((item) =>
+    [item.id, item.material, item.type, item.thickness, item.unit]
       .join(" ")
       .toLowerCase()
-      .includes(wasteMaterialSearch.toLowerCase()),
+      .includes(stockSearch.toLowerCase()),
   );
 
   useEffect(() => {
@@ -220,8 +207,12 @@ function EmployeeDashboard() {
 
     const loadProjects = async () => {
       try {
-        const rows = await api.list<ApiProject>("projects", { scope: "mine" });
+        const [rows, stockRows] = await Promise.all([
+          api.list<ApiProject>("projects", { scope: "mine" }),
+          api.list<StockItem>("stock"),
+        ]);
         setProjects(rows.map(projectFromApi));
+        setStockItems(stockRows ?? []);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Unable to load projects");
       }
@@ -237,6 +228,19 @@ function EmployeeDashboard() {
       items.map((item) => (item.backendId === nextProject.backendId ? nextProject : item)),
     );
     return nextProject;
+  };
+
+  const deleteProject = async (project: WorkProject) => {
+    try {
+      await api.remove("projects", project.backendId);
+      setProjects((items) => items.filter((item) => item.backendId !== project.backendId));
+      if (selectedProject?.backendId === project.backendId) {
+        setSelectedProject(null);
+      }
+      toast.success("Project deleted");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to delete project");
+    }
   };
 
   const openProjectUpdate = async (project: WorkProject) => {
@@ -271,6 +275,11 @@ function EmployeeDashboard() {
       return;
     }
     setSelectedProject(detail);
+    setDailyUpdateView("menu");
+    setMaterialQuantities(
+      Object.fromEntries(detail.materials.map((material) => [material.id, String(material.quantity)])),
+    );
+    setWasteMaterialRows([emptyWasteMaterial()]);
     setUsageQuantities(
       Object.fromEntries(
         (stage.materials ?? []).map((material) => [material.projectMaterialId, ""]),
@@ -278,11 +287,11 @@ function EmployeeDashboard() {
     );
     setUsageNote("");
     setStageStatus(stage?.staffStatus || "In progress");
-    setHasWasteMaterials(false);
     setWasteMaterialMode("create");
-    setWasteMaterials([emptyWasteMaterial()]);
-    setWasteMaterialSearch("");
-    setSelectedWasteMaterialIds([]);
+  };
+
+  const openDailyUpdate = (project: WorkProject) => {
+    openProjectUpdate(project);
   };
 
   const currentStage = selectedProject
@@ -299,36 +308,6 @@ function EmployeeDashboard() {
     0,
     Number(currentStage?.total ?? 0) - Number(currentStage?.completed ?? 0),
   );
-
-  useEffect(() => {
-    if (!selectedProject) {
-      setExistingWasteMaterials([]);
-      setNextWasteId("W001");
-      return;
-    }
-
-    let active = true;
-    const loadWasteMaterials = async () => {
-      try {
-        const [wasteRows, nextCode] = await Promise.all([
-          api.list<ApiWasteMaterial>("waste", { status: "available" }),
-          apiRequest<NextWasteCode>("/waste/next-code"),
-        ]);
-        if (!active) return;
-        setExistingWasteMaterials((wasteRows ?? []).map(mapWasteMaterial));
-        setSelectedWasteMaterialIds([]);
-        setNextWasteId(nextCode.code || "W001");
-      } catch (error) {
-        if (!active) return;
-        toast.error(error instanceof Error ? error.message : "Unable to load waste materials");
-      }
-    };
-
-    loadWasteMaterials();
-    return () => {
-      active = false;
-    };
-  }, [selectedProject?.backendId]);
 
   const saveAllocation = async () => {
     if (!allocationProject) return;
@@ -366,6 +345,17 @@ function EmployeeDashboard() {
     }
   };
 
+  const saveCreatedWasteMaterial = () => {
+    const type = wasteCreateType.trim();
+    const size = wasteCreateSize.trim();
+    const note = wasteCreateNote.trim();
+    if (!type) {
+      toast.error("Please select a material type");
+      return;
+    }
+    setCreatedWasteMessage({ type, size, note });
+  };
+
   const saveUsage = async () => {
     if (!selectedProject || !currentStage) return;
     const stageName = roleToStage(employeePosition);
@@ -378,11 +368,7 @@ function EmployeeDashboard() {
     const hasUsage = materials.length > 0;
     const hasStageStatus = Boolean(stageStatus.trim());
     const hasNote = Boolean(usageNote.trim());
-    const hasWasteSelection =
-      hasWasteMaterials &&
-      ((wasteMaterialMode === "create" && wasteMaterials.some((item) => item.type.trim())) ||
-        (wasteMaterialMode === "use" && selectedWasteMaterialIds.length > 0));
-    if (!hasUsage && !hasStageStatus && !hasNote && !hasWasteSelection) {
+    if (!hasUsage && !hasStageStatus && !hasNote) {
       return toast.error("Add usage, stage status, note, or waste update");
     }
 
@@ -397,37 +383,6 @@ function EmployeeDashboard() {
           materials,
         },
       );
-
-      if (hasWasteMaterials) {
-        if (wasteMaterialMode === "create") {
-          const wasteEntries = wasteMaterials.filter((item) => item.type.trim());
-          let currentWasteCode = nextWasteId;
-          for (const wasteItem of wasteEntries) {
-            await api.create<ApiWasteMaterial>("waste", {
-              code: currentWasteCode,
-              material: wasteItem.type.trim(),
-              projectId: selectedProject.backendId,
-              projectName: `${selectedProject.id} - ${selectedProject.name}`,
-              size: wasteItem.size.trim() || null,
-              note: wasteItem.note.trim() || null,
-            });
-            currentWasteCode = nextWasteCode(currentWasteCode);
-          }
-          setNextWasteId(currentWasteCode);
-        }
-
-        if (wasteMaterialMode === "use") {
-          const selectedWasteItems = existingWasteMaterials.filter((item) =>
-            selectedWasteMaterialIds.includes(item.id),
-          );
-          for (const wasteItem of selectedWasteItems) {
-            await api.update<ApiWasteMaterial>("waste", wasteItem.backendId, {
-              usedForProjectId: selectedProject.backendId,
-              usedForProjectName: `${selectedProject.id} - ${selectedProject.name}`,
-            });
-          }
-        }
-      }
 
       const nextProject = projectFromApi(updated);
       setProjects((items) =>
@@ -444,31 +399,11 @@ function EmployeeDashboard() {
       );
       setStageStatus(stage?.staffStatus || stageStatus);
       setUsageNote("");
-      setHasWasteMaterials(false);
       setWasteMaterialMode("create");
-      setWasteMaterials([emptyWasteMaterial()]);
-      setWasteMaterialSearch("");
-      setSelectedWasteMaterialIds([]);
       toast.success("Project update saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to update usage");
     }
-  };
-
-  const updateWasteMaterial = (index: number, updates: Partial<WasteMaterial>) => {
-    setWasteMaterials((items) =>
-      items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...updates } : item)),
-    );
-  };
-
-  const removeWasteMaterial = (index: number) => {
-    setWasteMaterials((items) => items.filter((_, itemIndex) => itemIndex !== index));
-  };
-
-  const toggleExistingWasteMaterial = (id: string, checked: boolean) => {
-    setSelectedWasteMaterialIds((items) =>
-      checked ? [...items, id] : items.filter((item) => item !== id),
-    );
   };
 
   const openRequiredMaterialsEditor = () => {
@@ -527,54 +462,92 @@ function EmployeeDashboard() {
         <main className="space-y-4 p-4">
           <div className="space-y-3">
             {projects.map((project) => (
-              <button
+              <div
                 key={project.id}
-                type="button"
-                onClick={() => openProjectUpdate(project)}
                 className={cn(
-                  "w-full rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-colors",
+                  "relative w-full rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-colors",
                   "hover:bg-muted/30",
                 )}
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{project.name}</p>
-                  </div>
-                  <StatusBadge status={project.status} />
+                <div className="absolute right-2 top-2 z-10">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={`Project actions for ${project.name}`}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
+                        Update
+                      </DropdownMenuItem>
+                      {canDelete ? (
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => deleteProject(project)}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      ) : null}
+                      <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
+                        Daily Update
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                <div className="mt-3 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-muted-foreground">Progress</span>
-                    <span className="font-semibold">{Number(project.progress.toFixed(2))}%</span>
+                <button
+                  type="button"
+                  onClick={() => openProjectUpdate(project)}
+                  className="w-full text-left"
+                >
+                  <div className="flex items-center justify-between gap-3 pr-10">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{project.name}</p>
+                    </div>
+                    <StatusBadge status={project.status} />
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-[image:var(--gradient-primary)]"
-                      style={{ width: `${project.progress}%` }}
-                    />
+                  <div className="mt-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-muted-foreground">Progress</span>
+                      <span className="font-semibold">{Number(project.progress.toFixed(2))}%</span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-[image:var(--gradient-primary)]"
+                        style={{ width: `${project.progress}%` }}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between rounded-md bg-muted/45 px-3 py-2 text-xs">
-                  <div>
-                    <span className="text-muted-foreground">Completion</span>
-                    <span className="ml-2 font-semibold text-foreground">
-                      {project.workflowStages.find(
-                        (stage) =>
-                          stage.name.toLowerCase() === roleToStage(employeePosition).toLowerCase(),
-                      )?.completed ?? 0}
-                      /
-                      {project.workflowStages.find(
-                        (stage) =>
-                          stage.name.toLowerCase() === roleToStage(employeePosition).toLowerCase(),
-                      )?.total ?? 0}
-                    </span>
+                  <div className="mt-3 flex items-center justify-between rounded-md bg-muted/45 px-3 py-2 text-xs">
+                    <div>
+                      <span className="text-muted-foreground">Completion</span>
+                      <span className="ml-2 font-semibold text-foreground">
+                        {project.workflowStages.find(
+                          (stage) =>
+                            stage.name.toLowerCase() ===
+                            roleToStage(employeePosition).toLowerCase(),
+                        )?.completed ?? 0}
+                        /
+                        {project.workflowStages.find(
+                          (stage) =>
+                            stage.name.toLowerCase() ===
+                            roleToStage(employeePosition).toLowerCase(),
+                        )?.total ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      {formatDateTimeCompact(project.delivery)}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                    <CalendarDays className="h-3.5 w-3.5" />
-                    {formatDateTimeCompact(project.delivery)}
-                  </div>
-                </div>
-              </button>
+                </button>
+              </div>
             ))}
             {projects.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-center">
@@ -601,6 +574,7 @@ function EmployeeDashboard() {
                       <th className="px-4 py-3 font-medium">Status</th>
                       <th className="px-4 py-3 font-medium">Progress</th>
                       <th className="px-4 py-3 font-medium">Delivery</th>
+                      <th className="px-4 py-3 text-right font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -641,11 +615,42 @@ function EmployeeDashboard() {
                         <td className="px-4 py-3 text-muted-foreground">
                           {formatDateTimeCompact(project.delivery)}
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                aria-label={`Project actions for ${project.name}`}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
+                                Update
+                              </DropdownMenuItem>
+                              {canDelete ? (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => deleteProject(project)}
+                                >
+                                  Delete
+                                </DropdownMenuItem>
+                              ) : null}
+                              <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
+                                Daily Update
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
                       </tr>
                     ))}
                     {projects.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-4 py-12 text-center">
+                        <td colSpan={6} className="px-4 py-12 text-center">
                           <p className="text-sm font-medium">No projects selected</p>
                           <p className="mt-1 text-xs text-muted-foreground">
                             Open All Projects and add a project to start working on it.
@@ -728,539 +733,406 @@ function EmployeeDashboard() {
       </Dialog>
 
       <Dialog open={!!selectedProject} onOpenChange={(open) => !open && setSelectedProject(null)}>
-        <DialogContent className="bottom-0 left-0 right-0 top-auto flex max-h-[92dvh] max-w-none !translate-x-0 !translate-y-0 flex-col overflow-hidden rounded-b-none rounded-t-2xl p-0 duration-300 data-[state=closed]:!slide-out-to-bottom data-[state=closed]:!slide-out-to-left-0 data-[state=closed]:!slide-out-to-top-0 data-[state=closed]:!zoom-out-100 data-[state=open]:!slide-in-from-bottom data-[state=open]:!slide-in-from-left-0 data-[state=open]:!slide-in-from-top-0 data-[state=open]:!zoom-in-100 sm:left-[50%] sm:right-auto sm:top-auto sm:max-w-3xl sm:!translate-x-[-50%]">
-          <DialogHeader className="shrink-0 border-b border-border bg-[image:var(--gradient-soft)] px-4 py-3 sm:px-6 sm:py-4 text-left">
-            <DialogTitle className="text-lg sm:text-xl">Update project</DialogTitle>
-            {selectedProject && (
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
-                {selectedProject.name}
+        <DialogContent className="bottom-0 left-0 right-0 top-auto flex max-h-[92dvh] max-w-none !translate-x-0 !translate-y-0 flex-col overflow-hidden rounded-b-none rounded-t-2xl p-0 duration-300 data-[state=closed]:!slide-out-to-bottom data-[state=closed]:!slide-out-to-left-0 data-[state=closed]:!slide-out-to-top-0 data-[state=closed]:!zoom-out-100 data-[state=open]:!slide-in-from-bottom data-[state=open]:!slide-in-from-left-0 data-[state=open]:!slide-in-from-top-0 data-[state=open]:!zoom-in-100 sm:left-[50%] sm:right-auto sm:top-auto sm:max-w-3xl sm:!translate-x-[-50%] [&>button]:hidden">
+          <DialogHeader className="shrink-0 border-b border-border bg-[image:var(--gradient-soft)] px-4 py-2.5 text-left sm:px-6 sm:py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                {dailyUpdateView !== "menu" ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    aria-label="Back to daily update"
+                    onClick={() => setDailyUpdateView("menu")}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                ) : null}
+                <DialogTitle className="text-lg sm:text-xl leading-tight">
+                  {dailyUpdateView === "job"
+                    ? "Job Updates"
+                    : dailyUpdateView === "materials"
+                      ? "Required Materials"
+                      : dailyUpdateView === "waste"
+                        ? "Waste Materials"
+                      : "Daily Update"}
+                </DialogTitle>
+              </div>
+              {selectedProject && (
+                <p className="shrink-0 text-right text-xs sm:text-sm font-medium text-muted-foreground">
+                  Status: {selectedProject.status}
+                </p>
+              )}
+            </div>
+            {selectedProject && dailyUpdateView === "menu" && (
+              <p className="-mt-0.5 text-xs sm:text-sm font-medium text-muted-foreground truncate">
+                Project Name: {selectedProject.name}
               </p>
             )}
           </DialogHeader>
 
-          {selectedProject && (
-            <>
-              {/* Scrollable content with better mobile padding */}
-              <div className="min-h-0 flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-5 space-y-4 sm:space-y-5">
-                {/* Stats Cards - Better mobile grid */}
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {/* Stage Progress Card */}
-                  <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                    <p className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground">
-                      Stage progress
-                    </p>
-                    <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-bold">
-                      {Number((currentStage?.completed ?? 0).toFixed(2))}
-                      <span className="text-xs sm:text-sm font-medium text-muted-foreground">
-                        {" "}
-                        / {currentStage?.total ?? 0}
-                      </span>
-                    </p>
-                    <div className="mt-2 sm:mt-3 h-1.5 sm:h-2 overflow-hidden rounded-full bg-muted">
+          {selectedProject && dailyUpdateView === "menu" && (
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <div className="space-y-4">
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <p className="text-sm font-medium">Stage of progress</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full rounded-full bg-[image:var(--gradient-primary)]"
                         style={{ width: `${stageProgressPercent}%` }}
                       />
                     </div>
-                    <p className="mt-1.5 sm:mt-2 text-[10px] sm:text-xs text-muted-foreground">
-                      {stageRemaining} remaining
-                    </p>
-                  </div>
-
-                  {/* Required Materials Card */}
-                  <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                    <p className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground">
-                      Required materials
-                    </p>
-                    <p className="mt-1 sm:mt-2 text-xl sm:text-2xl font-bold">
-                      {stageMaterials.length}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 sm:mt-3 w-full text-xs sm:text-sm"
-                      onClick={openRequiredMaterialsEditor}
-                      disabled={!canUpdate}
-                    >
-                      Edit materials
-                    </Button>
-                  </div>
-
-                  {/* Staff Status Card */}
-                  <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                    <p className="text-[10px] sm:text-xs uppercase tracking-wide text-muted-foreground">
-                      Staff status
-                    </p>
-                    <p className="mt-1 sm:mt-2 text-base sm:text-lg font-semibold truncate">
-                      {stageStatus}
-                    </p>
-                    <p className="mt-1 sm:mt-2 text-[10px] sm:text-xs text-muted-foreground hidden sm:block">
-                      Update your stage work status
-                    </p>
+                    <span className="text-xs text-muted-foreground">{stageProgressPercent}%</span>
                   </div>
                 </div>
 
-                {/* Tabs - Mobile optimized */}
-                <Tabs defaultValue="usage" className="space-y-3 sm:space-y-4">
-                  <TabsList className="grid w-full grid-cols-4 gap-1 bg-muted/50 p-1">
-                    <TabsTrigger value="usage" className="text-[11px] sm:text-sm px-1 sm:px-3">
-                      Update
-                    </TabsTrigger>
-                    <TabsTrigger value="materials" className="text-[11px] sm:text-sm px-1 sm:px-3">
-                      Materials
-                    </TabsTrigger>
-                    <TabsTrigger value="status" className="text-[11px] sm:text-sm px-1 sm:px-3">
-                      Status
-                    </TabsTrigger>
-                    <TabsTrigger value="history" className="text-[11px] sm:text-sm px-1 sm:px-3">
-                      History
-                    </TabsTrigger>
-                  </TabsList>
+                <div className="space-y-3">
+                  <Button
+                    type="button"
+                    className="h-14 w-full justify-start rounded-xl border-blue-600 bg-blue-50 text-left text-base text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                    onClick={() => setDailyUpdateView("job")}
+                  >
+                    <ClipboardList className="mr-2 h-4 w-4" />
+                    Job Update
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-14 w-full justify-start rounded-xl border-blue-600 bg-blue-50 text-left text-base text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                    onClick={() => setDailyUpdateView("materials")}
+                  >
+                    <Layers3 className="mr-2 h-4 w-4" />
+                    Materials
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-14 w-full justify-start rounded-xl border-blue-600 bg-blue-50 text-left text-base text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                    onClick={() => setDailyUpdateView("waste")}
+                  >
+                    <Package className="mr-2 h-4 w-4" />
+                    Waste Materials
+                  </Button>
+                </div>
 
-                  {/* Usage Tab - Mobile improvements */}
-                  <TabsContent value="usage" className="space-y-3 sm:space-y-4">
-                    <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                      <div className="mb-3 sm:mb-4">
-                        <h3 className="text-sm sm:text-base font-semibold">Daily usage update</h3>
-                        <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                          Add what you used today
-                        </p>
-                      </div>
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <div className="mb-2">
+                    <p className="text-sm font-medium">Status update</p>
+                  </div>
+                  <Select value={stageStatus} onValueChange={setStageStatus}>
+                    <SelectTrigger className="h-12 rounded-xl">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stageStatusOptions.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
 
-                      <div className="space-y-3">
-                        {stageMaterials.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-border p-3 sm:p-4 text-xs sm:text-sm text-muted-foreground">
-                            No required materials set for this stage yet.
-                          </div>
-                        ) : (
-                          stageMaterials.map((material) => {
-                            const remaining =
-                              material.requiredQuantity - material.completedQuantity;
-                            const progress =
-                              material.requiredQuantity > 0
-                                ? Math.min(
-                                    100,
-                                    (material.completedQuantity / material.requiredQuantity) * 100,
-                                  )
-                                : 0;
-
-                            return (
-                              <div
-                                key={material.projectMaterialId}
-                                className="rounded-lg border border-border/80 p-3 space-y-3"
-                              >
-                                {/* Material Info */}
-                                <div>
-                                  <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
-                                    <p className="text-sm font-medium">
-                                      {material.materialType || material.materialName}
-                                      {material.thickness ? ` ${material.thickness}` : ""}
-                                    </p>
-                                    <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">
-                                      {Number(material.completedQuantity.toFixed(2))}/{Number(material.requiredQuantity.toFixed(2))}{" "}
-                                      {material.unit}
-                                    </span>
-                                  </div>
-                                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                                    <div
-                                      className="h-full rounded-full bg-[image:var(--gradient-primary)]"
-                                      style={{ width: `${progress}%` }}
-                                    />
-                                  </div>
-                                  <p className="mt-1.5 text-[10px] sm:text-xs text-muted-foreground">
-                                    Remaining: {Number(remaining.toFixed(2))} {material.unit}
-                                  </p>
-                                </div>
-
-                                {/* Usage Input - Full width on mobile */}
-                                <div className="flex items-end gap-2">
-                                  <div className="flex-1 space-y-1">
-                                    <Label className="text-xs">Used today</Label>
-                                    <Input
-                                      type="number"
-                                      min={0}
-                                      max={remaining}
-                                      disabled={!canUpdate || remaining <= 0}
-                                      value={usageQuantities[material.projectMaterialId] ?? ""}
-                                      onChange={(event) =>
-                                        setUsageQuantities((current) => ({
-                                          ...current,
-                                          [material.projectMaterialId]: event.target.value,
-                                        }))
-                                      }
-                                      placeholder="0"
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="pb-2 text-sm text-muted-foreground">
-                                    {material.unit}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-
-                      {/* Usage Note */}
-                      <div className="mt-4 space-y-1.5">
-                        <Label className="text-xs sm:text-sm">Usage note (optional)</Label>
-                        <Textarea
-                          value={usageNote}
-                          onChange={(event) => setUsageNote(event.target.value)}
-                          placeholder="Add work notes, delays, or completed details..."
-                          rows={3}
-                          className="text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Waste Materials Section - Mobile optimized */}
-                    <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                      <div className="flex items-start gap-2 mb-3">
-                        <Checkbox
-                          id="has-waste-materials"
-                          checked={hasWasteMaterials}
-                          onCheckedChange={(value) => setHasWasteMaterials(Boolean(value))}
-                          className="mt-0.5"
-                        />
-                        <Label htmlFor="has-waste-materials" className="text-sm font-medium">
-                          Waste materials update
-                        </Label>
-                      </div>
-
-                      {hasWasteMaterials ? (
-                        <div className="space-y-3">
-                          <Tabs
-                            value={wasteMaterialMode}
-                            onValueChange={(value) =>
-                              setWasteMaterialMode(value as WasteMaterialMode)
-                            }
-                            className="w-full"
-                          >
-                            <div className="flex items-center gap-2 mb-3">
-                              <TabsList className="flex-1 grid grid-cols-2">
-                                <TabsTrigger value="create" className="text-xs sm:text-sm">
-                                  Create
-                                </TabsTrigger>
-                                <TabsTrigger value="use" className="text-xs sm:text-sm">
-                                  Use
-                                </TabsTrigger>
-                              </TabsList>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="shrink-0 border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
-                                onClick={() => {
-                                  setWasteMaterialMode("create");
-                                  setWasteMaterials((items) => [...items, emptyWasteMaterial()]);
-                                }}
-                              >
-                                <Plus className="h-4 w-4 mr-1" />
-                                Add
-                              </Button>
-                            </div>
-
-                            <TabsContent value="create" className="space-y-3 mt-0">
-                              {wasteMaterials.map((item, index) => (
-                                <div
-                                  key={index}
-                                  className="space-y-3 rounded-lg border border-border/70 p-3"
-                                >
-                                  <div className="space-y-2">
-                                    <Label className="text-xs">Material Type</Label>
-                                    <Select
-                                      value={item.type}
-                                      onValueChange={(value) =>
-                                        updateWasteMaterial(index, { type: value })
-                                      }
-                                    >
-                                      <SelectTrigger className="text-sm">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {materialTypes.map((type) => (
-                                          <SelectItem key={type} value={type}>
-                                            {type}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-xs">Size</Label>
-                                    <Input
-                                      value={item.size}
-                                      onChange={(event) =>
-                                        updateWasteMaterial(index, { size: event.target.value })
-                                      }
-                                      placeholder="e.g., 120x240cm"
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-xs">Note</Label>
-                                    <Input
-                                      value={item.note}
-                                      onChange={(event) =>
-                                        updateWasteMaterial(index, { note: event.target.value })
-                                      }
-                                      placeholder="Additional info"
-                                      className="text-sm"
-                                    />
-                                  </div>
-                                  <div className="flex justify-end">
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => removeWasteMaterial(index)}
-                                      disabled={wasteMaterials.length === 1}
-                                      className="text-destructive"
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-1" />
-                                      Remove
-                                    </Button>
-                                  </div>
-                                </div>
-                              ))}
-                            </TabsContent>
-
-                            <TabsContent value="use" className="space-y-3 mt-0">
-                              <Input
-                                value={wasteMaterialSearch}
-                                onChange={(event) => setWasteMaterialSearch(event.target.value)}
-                                placeholder="Search waste materials..."
-                                className="text-sm"
-                              />
-                              <div className="max-h-64 overflow-y-auto rounded-lg border border-border/70">
-                                {filteredWasteMaterials.map((item) => {
-                                  const checked = selectedWasteMaterialIds.includes(item.id);
-                                  return (
-                                    <label
-                                      key={item.id}
-                                      className="flex items-center gap-3 border-b border-border/60 p-3 last:border-0 hover:bg-muted/30 cursor-pointer"
-                                    >
-                                      <Checkbox
-                                        checked={checked}
-                                        onCheckedChange={(value) =>
-                                          toggleExistingWasteMaterial(item.id, Boolean(value))
-                                        }
-                                      />
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate">{item.type}</p>
-                                        <p className="text-xs text-muted-foreground truncate">
-                                          {item.size}
-                                        </p>
-                                      </div>
-                                      <span
-                                        className={`text-xs font-medium whitespace-nowrap ${
-                                          selectedProject &&
-                                          item.usedForProjectId === selectedProject.backendId
-                                            ? "text-emerald-600"
-                                            : "text-muted-foreground"
-                                        }`}
-                                      >
-                                        {selectedProject &&
-                                        item.usedForProjectId === selectedProject.backendId
-                                          ? "Linked"
-                                          : "Ready"}
-                                      </span>
-                                    </label>
-                                  );
-                                })}
-                                {filteredWasteMaterials.length === 0 && (
-                                  <div className="px-3 py-6 text-center text-xs sm:text-sm text-muted-foreground">
-                                    No waste materials found.
-                                  </div>
-                                )}
-                              </div>
-                            </TabsContent>
-                          </Tabs>
-                        </div>
-                      ) : (
-                        <p className="text-xs sm:text-sm text-muted-foreground">
-                          Enable to create or use waste materials for today's work
-                        </p>
-                      )}
-                    </div>
-                  </TabsContent>
-
-                  {/* Materials Tab */}
-                  <TabsContent value="materials" className="space-y-3 sm:space-y-4">
-                    <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
-                        <div>
-                          <h3 className="text-sm sm:text-base font-semibold">Required materials</h3>
-                          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                            Quantities needed for this stage
+          {selectedProject && dailyUpdateView === "job" && (
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <div className="space-y-3">
+                {stageMaterials.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No required materials set for this stage yet.
+                  </div>
+                ) : (
+                  stageMaterials.map((material) => {
+                    const remaining = material.requiredQuantity - material.completedQuantity;
+                    return (
+                      <div
+                        key={material.projectMaterialId}
+                        className="grid grid-cols-[minmax(0,1fr)_110px] gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-start"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">
+                            {material.materialType || material.materialName}
+                            {material.thickness ? ` ${material.thickness}` : ""}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Required: {Number(material.requiredQuantity.toFixed(2))} {material.unit}
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={openRequiredMaterialsEditor}
-                          disabled={!canUpdate}
-                          className="w-full sm:w-auto"
-                        >
-                          Edit materials
-                        </Button>
-                      </div>
 
-                      <div className="space-y-2">
-                        {stageMaterials.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-border p-3 sm:p-4 text-xs sm:text-sm text-muted-foreground text-center">
-                            No required materials configured yet
-                          </div>
-                        ) : (
-                          stageMaterials.map((material) => (
-                            <div
-                              key={`required-${material.projectMaterialId}`}
-                              className="flex items-center justify-between rounded-lg border border-border/70 p-3"
-                            >
-                              <div>
-                                <p className="text-sm font-medium">
-                                  {material.materialType || material.materialName}
-                                  {material.thickness ? ` ${material.thickness}` : ""}
-                                </p>
-                                <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                  Required: {Number(material.requiredQuantity.toFixed(2))} {material.unit}
-                                </p>
-                              </div>
-                              <div className="text-sm font-medium whitespace-nowrap ml-2">
-                                {material.completedQuantity}/{material.requiredQuantity}
-                              </div>
-                            </div>
-                          ))
-                        )}
+                        <div className="space-y-1.5 justify-self-end w-[110px] sm:w-[180px]">
+                          <Label className="text-xs">Used materials</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={remaining}
+                            disabled={!canUpdate || remaining <= 0}
+                            value={usageQuantities[material.projectMaterialId] ?? ""}
+                            onChange={(event) =>
+                              setUsageQuantities((current) => ({
+                                ...current,
+                                [material.projectMaterialId]: event.target.value,
+                              }))
+                            }
+                            placeholder="0"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  </TabsContent>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
 
-                  {/* Status Tab */}
-                  <TabsContent value="status" className="space-y-3 sm:space-y-4">
-                    <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                      <div className="mb-4">
-                        <h3 className="text-sm sm:text-base font-semibold">Update stage status</h3>
-                        <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                          Status for your work stage
+          {selectedProject && dailyUpdateView === "materials" && (
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <div className="space-y-3">
+                {selectedProject.materials.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    No required materials available for this project.
+                  </div>
+                ) : (
+                  selectedProject.materials.map((material) => (
+                    <div
+                      key={material.id}
+                      className="grid grid-cols-[minmax(0,1fr)_110px] gap-3 rounded-xl border border-border bg-card p-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-start"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {material.materialType || material.materialName}
+                          {material.thickness ? ` ${material.thickness}` : ""}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Project quantity: {material.quantity} {material.unit}
                         </p>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="space-y-1.5 justify-self-end w-[110px] sm:w-[180px]">
+                        <Label className="text-xs">Required materials</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={materialQuantities[material.id] ?? ""}
+                          onChange={(event) =>
+                            setMaterialQuantities((current) => ({
+                              ...current,
+                              [material.id]: event.target.value,
+                            }))
+                          }
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {selectedProject && dailyUpdateView === "waste" && (
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    className={cn(
+                      "h-12 rounded-xl",
+                      wasteMaterialMode === "create"
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-blue-50 text-blue-700 hover:bg-blue-100",
+                    )}
+                    onClick={() => setWasteMaterialMode("create")}
+                  >
+                    Create Material
+                  </Button>
+                  <Button
+                    type="button"
+                    className={cn(
+                      "h-12 rounded-xl",
+                      wasteMaterialMode === "use"
+                        ? "bg-blue-600 text-white hover:bg-blue-700"
+                        : "bg-blue-50 text-blue-700 hover:bg-blue-100",
+                    )}
+                    onClick={() => setWasteMaterialMode("use")}
+                  >
+                    Use Material
+                  </Button>
+                </div>
+
+                {wasteMaterialMode === "create" ? (
+                  <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                    {createdWasteMessage && (
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900 shadow-sm">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold">Material saved</p>
+                            <p className="mt-1 text-sm text-emerald-800">
+                              {createdWasteMessage.type}
+                              {createdWasteMessage.size ? `, size ${createdWasteMessage.size}` : ""}
+                              {createdWasteMessage.note ? `, note ${createdWasteMessage.note}` : ""}
+                            </p>
+                            <p className="mt-1 text-xs font-medium text-emerald-700">
+                              Ready for the next material
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {!createdWasteMessage && (
+                      <>
                         <div className="space-y-1.5">
-                          <Label className="text-xs sm:text-sm">Stage status</Label>
-                          <Select value={stageStatus} onValueChange={setStageStatus}>
-                            <SelectTrigger className="text-sm">
-                              <SelectValue />
+                          <Label className="text-xs">Type</Label>
+                          <Select value={wasteCreateType} onValueChange={setWasteCreateType}>
+                            <SelectTrigger className="h-12 rounded-xl">
+                              <SelectValue placeholder="Select type" />
                             </SelectTrigger>
                             <SelectContent>
-                              {stageStatusOptions.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  {status}
+                              {materialTypes.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-
-                        <div className="rounded-lg border border-border/70 bg-muted/20 p-3">
-                          <p className="text-xs sm:text-sm text-muted-foreground">
-                            Current stage:{" "}
-                            <span className="font-medium text-foreground">
-                              {roleToStage(employeePosition)}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Size</Label>
+                          <Input
+                            value={wasteCreateSize}
+                            onChange={(event) => setWasteCreateSize(event.target.value)}
+                            placeholder="Enter size"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Note</Label>
+                          <Textarea
+                            value={wasteCreateNote}
+                            onChange={(event) => setWasteCreateNote(event.target.value)}
+                            placeholder="Add a note"
+                            rows={3}
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          className="h-12 w-full rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                          onClick={saveCreatedWasteMaterial}
+                        >
+                          Create
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Select material from stock</Label>
+                      <Popover open={stockSearchOpen} onOpenChange={setStockSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            className="h-12 w-full justify-between rounded-xl"
+                          >
+                            <span className="truncate">
+                              {selectedStockItem
+                                ? `${selectedStockItem.material} ${selectedStockItem.type}${selectedStockItem.thickness ? ` ${selectedStockItem.thickness}` : ""}`
+                                : "Search stock items"}
                             </span>
-                          </p>
-                        </div>
-                      </div>
+                            <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[calc(100vw-2rem)] max-w-[420px] p-0" align="start">
+                          <Command>
+                            <CommandInput
+                              value={stockSearch}
+                              onValueChange={setStockSearch}
+                              placeholder="Search stock..."
+                            />
+                            <CommandList>
+                              <CommandEmpty>No stock items found.</CommandEmpty>
+                              <CommandGroup>
+                                {filteredStockItems.map((item) => (
+                                  <CommandItem
+                                    key={item.id}
+                                    value={`${item.material} ${item.type} ${item.thickness ?? ""} ${item.unit}`}
+                                    onSelect={() => {
+                                      setSelectedStockItem(item);
+                                      setStockSearchOpen(false);
+                                    }}
+                                  >
+                                    <div className="flex min-w-0 flex-1 flex-col">
+                                      <span className="truncate text-sm font-medium">
+                                        {item.material} {item.type}
+                                        {item.thickness ? ` ${item.thickness}` : ""}
+                                      </span>
+                                      <span className="truncate text-xs text-muted-foreground">
+                                        Available: {item.quantity} {item.unit}
+                                      </span>
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
-                  </TabsContent>
-
-                  {/* History Tab */}
-                  <TabsContent value="history" className="space-y-3 sm:space-y-4">
-                    <div className="rounded-xl border border-border bg-card p-3 sm:p-4">
-                      <div className="mb-4">
-                        <h3 className="text-sm sm:text-base font-semibold">Daily usage history</h3>
-                        <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
-                          Previous updates for this stage
-                        </p>
-                      </div>
-
-                      {(currentStage?.usageHistory ?? []).length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-border p-3 sm:p-4 text-xs sm:text-sm text-muted-foreground text-center">
-                          No daily updates yet
-                        </div>
-                      ) : (
-                        <div className="max-h-[50vh] space-y-2 overflow-y-auto">
-                          {(currentStage?.usageHistory ?? []).map((record) => (
-                            <div
-                              key={record.id}
-                              className="rounded-lg border border-border bg-background p-3"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
-                                <span className="text-xs sm:text-sm font-medium">
-                                  {record.staffName || "Staff"} -{" "}
-                                  {record.stageStatus ||
-                                    record.role ||
-                                    roleToStage(employeePosition)}
-                                </span>
-                                <span className="text-[10px] sm:text-xs text-muted-foreground">
-                                  {formatDateTimeCompact(record.createdAt)}
-                                </span>
-                              </div>
-
-                              {record.materials.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 mb-2">
-                                  {record.materials.map((material) => (
-                                    <span
-                                      key={`${record.id}-${material.projectMaterialId}`}
-                                      className="rounded-md bg-muted px-2 py-0.5 text-[10px] sm:text-xs"
-                                    >
-                                      {material.materialType || material.materialName}{material.thickness ? ` ${material.thickness}` : ""}: {Number(material.quantityUsed.toFixed(2))} {material.unit}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-
-                              {record.materials.length === 0 && (
-                                <div className="mb-2">
-                                  <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] sm:text-xs">
-                                    Status update only
-                                  </span>
-                                </div>
-                              )}
-
-                              {record.note && (
-                                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                                  {record.note}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                  </div>
+                )}
               </div>
-
-              {/* Footer - Fixed at bottom */}
-              <DialogFooter className="sticky bottom-0 grid shrink-0 grid-cols-2 gap-2 sm:gap-3 border-t border-border bg-background px-3 sm:px-6 py-3 sm:py-4">
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedProject(null)}
-                  className="text-sm"
-                >
-                  Cancel
-                </Button>
-                <Button onClick={saveUsage} disabled={!canUpdate} className="text-sm">
-                  Save changes
-                </Button>
-              </DialogFooter>
-            </>
+            </div>
           )}
+
+          <DialogFooter className="shrink-0 grid grid-cols-2 gap-2 border-t border-border bg-background px-4 py-3 sm:px-6 sm:py-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedProject(null);
+                setDailyUpdateView("menu");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (dailyUpdateView === "job") {
+                  saveUsage();
+                  return;
+                }
+                if (dailyUpdateView === "materials") {
+                  toast.success("Required materials updated");
+                  return;
+                }
+                if (dailyUpdateView === "waste") {
+                  if (wasteMaterialMode === "create") {
+                    toast.success("Waste material created");
+                    return;
+                  }
+                  if (wasteMaterialMode === "use") {
+                    if (!selectedStockItem) {
+                      toast.error("Please select a stock item");
+                      return;
+                    }
+                    toast.success(`Using ${selectedStockItem.material} from stock`);
+                    return;
+                  }
+                  return;
+                }
+              }}
+              disabled={!canUpdate && dailyUpdateView !== "menu"}
+            >
+              {dailyUpdateView === "job"
+                  ? "Save changes"
+                  : dailyUpdateView === "materials"
+                    ? "Save materials"
+                    : "Save"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
