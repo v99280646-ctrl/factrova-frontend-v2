@@ -64,13 +64,18 @@ function roleToStage(role) {
   return "";
 }
 
+function isPackingDeliveryRole(role) {
+  const name = String(role || "").toLowerCase();
+  return name.includes("pack") || name.includes("deliver");
+}
+
 function projectFromApi(row) {
   return {
     id: row.code,
     backendId: row.id,
     name: row.name,
     customer: row.customerName,
-    status: row.status,
+    status: row.status === "completed" ? "delivered" : row.status,
     progress: row.progress,
     delivery: row.delivery ?? "TBD",
     amount: Number(row.amount),
@@ -148,6 +153,7 @@ export function EmployeeDashboard() {
   const [projects, setProjects] = useState([]);
   const [allocationProject, setAllocationProject] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
+  const [deliveryConfirmProject, setDeliveryConfirmProject] = useState(null);
   const [employeeName, setEmployeeName] = useState("Employee");
   const [employeePosition, setEmployeePosition] = useState("Cutting Mechine");
   const [allocationQuantities, setAllocationQuantities] = useState({});
@@ -171,6 +177,9 @@ export function EmployeeDashboard() {
   const [wasteSearch, setWasteSearch] = useState("");
   const [createdWasteMessage, setCreatedWasteMessage] = useState(null);
   const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [isMarkingDelivered, setIsMarkingDelivered] = useState(false);
+  const isPackingDeliveryUser = isPackingDeliveryRole(employeePosition);
+  const projectListTitle = isPackingDeliveryUser ? "All Projects" : "My Projects";
 
   useEffect(() => {
     localStorage.setItem("factrova-login-role", "staff");
@@ -179,8 +188,10 @@ export function EmployeeDashboard() {
 
     const loadProjects = async () => {
       try {
+        const storedRole = localStorage.getItem("factrova-employee-position") || "Cutting Mechine";
+        const packingDeliveryUser = isPackingDeliveryRole(storedRole);
         const [rows, wasteItems, nextCode, materialTypeRows] = await Promise.all([
-          api.list("projects", { scope: "mine" }),
+          api.list("projects", packingDeliveryUser ? {} : { scope: "mine" }),
           api.list("waste"),
           apiRequest("/waste/next-code"),
           apiRequest("stock/material-types"),
@@ -224,6 +235,19 @@ export function EmployeeDashboard() {
   };
 
   const openProjectUpdate = async (project) => {
+    if (isPackingDeliveryUser) {
+      if (!canUpdate) {
+        toast.error("Project update permission is required to mark delivery");
+        return;
+      }
+      if (project.status === "delivered") {
+        toast.info("This project is already delivered");
+        return;
+      }
+      setDeliveryConfirmProject(project);
+      return;
+    }
+
     const stageName = roleToStage(employeePosition);
     if (!stageName) {
       toast.error("This role cannot update project stages");
@@ -274,6 +298,27 @@ export function EmployeeDashboard() {
     setWasteSearch("");
     setCreatedWasteMessage(null);
     setIsSavingStatus(false);
+  };
+
+  const markProjectDelivered = async () => {
+    if (!deliveryConfirmProject) return;
+
+    setIsMarkingDelivered(true);
+    try {
+      const updated = await api.create(`projects/${deliveryConfirmProject.backendId}/deliver`, {
+        delivery: new Date().toISOString(),
+      });
+      const nextProject = projectFromApi(updated);
+      setProjects((items) =>
+        items.map((item) => (item.backendId === nextProject.backendId ? nextProject : item)),
+      );
+      setDeliveryConfirmProject(null);
+      toast.success("Project marked as delivered");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to mark project as delivered");
+    } finally {
+      setIsMarkingDelivered(false);
+    }
   };
 
   const currentStage = selectedProject
@@ -551,8 +596,8 @@ export function EmployeeDashboard() {
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
           <div>
             <p className="text-base font-semibold leading-tight">{employeeName}</p>
-            <p className="text-xs text-muted-foreground">{employeePosition}</p>
-          </div>
+                <p className="text-xs text-muted-foreground">{employeePosition}</p>
+              </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Employee menu">
@@ -598,7 +643,7 @@ export function EmployeeDashboard() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-40">
                       <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
-                        Update
+                        {isPackingDeliveryUser ? "Mark Delivered" : "Update"}
                       </DropdownMenuItem>
                       {canDelete && (
                         <DropdownMenuItem
@@ -608,9 +653,11 @@ export function EmployeeDashboard() {
                           Delete
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
-                        Daily Update
-                      </DropdownMenuItem>
+                      {!isPackingDeliveryUser && (
+                        <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
+                          Daily Update
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -666,9 +713,13 @@ export function EmployeeDashboard() {
 
             {projects.length === 0 && (
               <div className="rounded-lg border border-dashed border-border bg-card px-4 py-10 text-center">
-                <p className="text-sm font-medium">No projects selected</p>
+                <p className="text-sm font-medium">
+                  {isPackingDeliveryUser ? "No projects available" : "No projects selected"}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Open All Projects and add a project to start working on it.
+                  {isPackingDeliveryUser
+                    ? "Projects will appear here until they are marked as delivered."
+                    : "Open All Projects and add a project to start working on it."}
                 </p>
               </div>
             )}
@@ -678,7 +729,7 @@ export function EmployeeDashboard() {
 
       {/* Desktop View */}
       <div className="hidden md:block">
-        <DashboardLayout title="My Projects" role="staff">
+        <DashboardLayout title={projectListTitle} role="staff">
           <Card className="border-border/60 shadow-[var(--shadow-card)]">
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -747,7 +798,7 @@ export function EmployeeDashboard() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-40">
                               <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
-                                Update
+                                {isPackingDeliveryUser ? "Mark Delivered" : "Update"}
                               </DropdownMenuItem>
                               {canDelete && (
                                 <DropdownMenuItem
@@ -757,9 +808,11 @@ export function EmployeeDashboard() {
                                   Delete
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
-                                Daily Update
-                              </DropdownMenuItem>
+                              {!isPackingDeliveryUser && (
+                                <DropdownMenuItem onClick={() => openProjectUpdate(project)}>
+                                  Daily Update
+                                </DropdownMenuItem>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </td>
@@ -769,9 +822,13 @@ export function EmployeeDashboard() {
                     {projects.length === 0 && (
                       <tr>
                         <td colSpan={6} className="px-4 py-12 text-center">
-                          <p className="text-sm font-medium">No projects selected</p>
+                          <p className="text-sm font-medium">
+                            {isPackingDeliveryUser ? "No projects available" : "No projects selected"}
+                          </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Open All Projects and add a project to start working on it.
+                            {isPackingDeliveryUser
+                              ? "Projects will appear here until they are marked as delivered."
+                              : "Open All Projects and add a project to start working on it."}
                           </p>
                         </td>
                       </tr>
@@ -849,6 +906,41 @@ export function EmployeeDashboard() {
               Cancel
             </Button>
             <Button onClick={saveAllocation}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deliveryConfirmProject}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeliveryConfirmProject(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Delivery</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Mark <span className="font-semibold text-foreground">{deliveryConfirmProject?.name}</span> as delivered?
+            </p>
+            <p>
+              The project status will be updated to <span className="font-semibold text-foreground">delivered</span> and the delivery date will be set to now.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeliveryConfirmProject(null)}
+              disabled={isMarkingDelivered}
+            >
+              Cancel
+            </Button>
+            <Button onClick={markProjectDelivered} disabled={isMarkingDelivered}>
+              {isMarkingDelivered ? "Marking..." : "Confirm Delivery"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -15,11 +15,11 @@ export function Overview() {
     const [revenueByMonth, setRevenueByMonth] = useState(initialRevenueByMonth);
     const total = projects.length;
     const active = projects.filter((p) => p.status === "ongoing").length;
-    const done = projects.filter((p) => p.status === "completed").length;
-    const revenue = projects.filter((p) => p.status === "completed").reduce((s, p) => s + p.amount, 0);
+    const done = projects.filter((p) => p.status === "delivered").length;
+    const revenue = projects.filter((p) => p.status === "delivered").reduce((s, p) => s + p.amount, 0);
     const projectsByStatus = [
         { name: "Ongoing", value: projects.filter((project) => project.status === "ongoing").length },
-        { name: "Completed", value: projects.filter((project) => project.status === "completed").length },
+        { name: "Delivered", value: projects.filter((project) => project.status === "delivered").length },
         { name: "Hold", value: projects.filter((project) => project.status === "hold").length },
     ];
     useEffect(() => {

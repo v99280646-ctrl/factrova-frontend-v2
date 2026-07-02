@@ -48,7 +48,7 @@ import { cn } from "@/lib/utils";
 const THICKNESS_OPTIONS = Array.from({ length: 40 }, (_, index) => `${index + 1}mm`);
 const PROJECT_STATUSES = [
   { value: "ongoing", label: "Ongoing", color: "bg-blue-500" },
-  { value: "completed", label: "Completed", color: "bg-green-500" },
+  { value: "delivered", label: "Delivered", color: "bg-green-500" },
   { value: "hold", label: "On Hold", color: "bg-yellow-500" },
 ];
 const ADMIN_MANUAL_STAFF_ID = "__admin_manual__";

@@ -66,7 +66,7 @@ import { DEFAULT_MATERIAL_TYPES } from "@/lib/material-types";
 // Constants
 const STEPS = ["Basic info", "Materials", "Services", "Summary"];
 const THICKNESS_OPTIONS = Array.from({ length: 40 }, (_, i) => `${i + 1}mm`);
-const PROJECT_STATUSES = ["ongoing", "completed", "hold"];
+const PROJECT_STATUSES = ["ongoing", "delivered", "hold"];
 
 // Utility Functions
 function makeProjectCode() {

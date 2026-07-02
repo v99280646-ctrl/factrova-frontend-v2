@@ -319,7 +319,7 @@ export function Projects() {
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="ongoing">Ongoing</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="delivered">Delivered</SelectItem>
             <SelectItem value="hold">On hold</SelectItem>
           </SelectContent>
         </Select>
