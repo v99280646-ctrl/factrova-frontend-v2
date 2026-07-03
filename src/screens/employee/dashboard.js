@@ -1,7 +1,7 @@
 "use client";
 
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout.js";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/status/status-badge.js";
-import { canPageAction } from "@/lib/auth";
+import { canPageAction, getAuthSession } from "@/lib/auth";
 import { DEFAULT_MATERIAL_TYPES } from "@/lib/material-types";
 import { api, apiRequest } from "@/lib/api";
 import { formatDateTimeCompact } from "@/lib/date-format";
@@ -43,6 +44,7 @@ import {
   FolderKanban,
   Layers3,
   LogOut,
+  Menu,
   Package,
   MoreVertical,
   Plus,
@@ -145,6 +147,35 @@ function todayUsageMap(stage, employeeName) {
   );
 }
 
+function buildEmployeeMobileRoutes(session) {
+  const routes = [];
+
+  if (canPageAction("projects", "view", session)) {
+    routes.push({ to: "/dashboard/projects", label: "All Projects" });
+    routes.push({ to: "/employee/dashboard", label: "My Projects" });
+  }
+  if (canPageAction("customers", "view", session)) {
+    routes.push({ to: "/dashboard/customers", label: "Customers" });
+  }
+  if (canPageAction("vendors", "view", session)) {
+    routes.push({ to: "/dashboard/vendors", label: "Vendors" });
+  }
+  if (canPageAction("services", "view", session)) {
+    routes.push({ to: "/dashboard/services", label: "Services" });
+  }
+  if (canPageAction("stock", "view", session)) {
+    routes.push({ to: "/dashboard/stock", label: "Stock" });
+  }
+  if (canPageAction("notifications", "view", session)) {
+    routes.push({ to: "/dashboard/notifications", label: "Notifications" });
+  }
+  if (canPageAction("settings", "view", session)) {
+    routes.push({ to: "/dashboard/settings", label: "Settings" });
+  }
+
+  return routes;
+}
+
 export function EmployeeDashboard() {
   const canUpdate = canPageAction("projects", "update");
   const canDelete = canPageAction("projects", "delete");
@@ -154,6 +185,7 @@ export function EmployeeDashboard() {
   const [allocationProject, setAllocationProject] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [deliveryConfirmProject, setDeliveryConfirmProject] = useState(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [employeeName, setEmployeeName] = useState("Employee");
   const [employeePosition, setEmployeePosition] = useState("Cutting Mechine");
   const [allocationQuantities, setAllocationQuantities] = useState({});
@@ -180,6 +212,7 @@ export function EmployeeDashboard() {
   const [isMarkingDelivered, setIsMarkingDelivered] = useState(false);
   const isPackingDeliveryUser = isPackingDeliveryRole(employeePosition);
   const projectListTitle = isPackingDeliveryUser ? "All Projects" : "My Projects";
+  const mobileRoutes = useMemo(() => buildEmployeeMobileRoutes(getAuthSession()), []);
 
   useEffect(() => {
     localStorage.setItem("factrova-login-role", "staff");
@@ -594,10 +627,25 @@ export function EmployeeDashboard() {
       {/* Mobile View */}
       <div className="min-h-screen bg-muted/30 md:hidden">
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
-          <div>
-            <p className="text-base font-semibold leading-tight">{employeeName}</p>
-                <p className="text-xs text-muted-foreground">{employeePosition}</p>
-              </div>
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 shrink-0"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                {projectListTitle}
+              </p>
+              <p className="truncate text-base font-semibold leading-tight">{employeeName}</p>
+              <p className="truncate text-xs text-muted-foreground">{employeePosition}</p>
+            </div>
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Employee menu">
@@ -616,6 +664,48 @@ export function EmployeeDashboard() {
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
+
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side="left" className="w-[86vw] max-w-sm p-0">
+            <SheetHeader className="border-b border-border px-4 py-4 text-left">
+              <SheetTitle>Routes</SheetTitle>
+              <div>
+                <p className="text-sm font-semibold">{employeeName}</p>
+                <p className="text-xs text-muted-foreground">{employeePosition}</p>
+              </div>
+            </SheetHeader>
+            <div className="space-y-1 px-3 py-3">
+              {mobileRoutes.map((route) => (
+                <Button
+                  key={route.to}
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    setMobileNavOpen(false);
+                    navigate({ to: route.to });
+                  }}
+                >
+                  {route.label}
+                </Button>
+              ))}
+            </div>
+            <div className="border-t border-border p-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => {
+                  setMobileNavOpen(false);
+                  logout();
+                }}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Logout
+              </Button>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         <main className="space-y-4 p-4">
           <div className="space-y-3">

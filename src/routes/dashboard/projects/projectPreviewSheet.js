@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -14,6 +15,7 @@ import {
   Phone,
   UserRound,
   UsersRound,
+  FilePlus2,
 } from "lucide-react";
 import { StatusBadge } from "@/components/status/status-badge.js";
 import { cn } from "@/lib/utils";
@@ -21,6 +23,7 @@ import { api, apiRequest } from "@/lib/api";
 import { formatDateTimeCompact } from "@/lib/date-format";
 import { findWasteAssignment } from "@/lib/waste-assignment-store";
 import { toast } from "sonner";
+import { canPageAction } from "@/lib/auth";
 
 function mapProjectWasteMaterial(row) {
   const stored = findWasteAssignment({ backendId: row.id, code: row.code });
@@ -89,6 +92,7 @@ function getMaterialStatusClasses(status) {
 }
 
 const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
+  const canGenerateInvoice = canPageAction("finance", "add");
   const [projectDetails, setProjectDetails] = useState(null);
   const [detailMaterials, setDetailMaterials] = useState([]);
   const [detailServices, setDetailServices] = useState([]);
@@ -99,6 +103,7 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
   const [detailAssignedStaff, setDetailAssignedStaff] = useState([]);
   const [createdDate, setCreatedDate] = useState("");
   const [savingStatusUserId, setSavingStatusUserId] = useState("");
+  const [creatingInvoice, setCreatingInvoice] = useState(false);
 
   const progressTone =
     project?.progress && project.progress >= 70
@@ -133,7 +138,9 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
         if (!active) return;
 
         setProjectDetails(detail);
-        const summaryRows = Array.isArray(detail.materialStockSummary) ? detail.materialStockSummary : [];
+        const summaryRows = Array.isArray(detail.materialStockSummary)
+          ? detail.materialStockSummary
+          : [];
         if (summaryRows.length > 0) {
           setDetailMaterials(
             summaryRows.map((row) => ({
@@ -172,11 +179,12 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
                 required: Number(row.quantity),
                 used: 0,
                 inStock: Number(stockItem?.quantity ?? 0),
-                status: Number(stockItem?.quantity ?? 0) >= Number(row.quantity)
-                  ? "Sufficient"
-                  : Number(stockItem?.quantity ?? 0) > 0
-                    ? "Insufficient (Partial)"
-                    : "Insufficient",
+                status:
+                  Number(stockItem?.quantity ?? 0) >= Number(row.quantity)
+                    ? "Sufficient"
+                    : Number(stockItem?.quantity ?? 0) > 0
+                      ? "Insufficient (Partial)"
+                      : "Insufficient",
               };
             }),
           );
@@ -184,6 +192,7 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
 
         setDetailServices(
           (detail.services ?? []).map((row) => ({
+            serviceId: row.serviceId || "",
             service: row.serviceName || row.name || "Service",
             employeeRole: row.employeeRole || "",
             price: Number(row.rate ?? row.price ?? 0),
@@ -268,9 +277,7 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
       (taxType === "percent" ? (discountedBase * taxValue) / 100 : taxValue),
   );
   const grandTotal = Number(
-    projectDetails?.grandTotal ??
-      project?.grandTotal ??
-      Math.max(0, discountedBase + taxAmount),
+    projectDetails?.grandTotal ?? project?.grandTotal ?? Math.max(0, discountedBase + taxAmount),
   );
   const formatMoney = (value) =>
     Number(value || 0).toLocaleString("en-IN", {
@@ -293,6 +300,78 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
       toast.error(error instanceof Error ? error.message : "Unable to update staff status");
     } finally {
       setSavingStatusUserId("");
+    }
+  };
+
+  const handleGenerateInvoice = async () => {
+    if (!backendId || !projectDetails) {
+      toast.error("Project details are still loading");
+      return;
+    }
+
+    const issueDate = new Date().toISOString().slice(0, 10);
+    const billToAddress = [
+      detailCustomer?.company,
+      detailCustomer?.address,
+      detailCustomer?.district,
+      detailCustomer?.state,
+      detailCustomer?.pincode,
+      detailCustomer?.email,
+      formatPhoneDisplay(detailCustomer?.countryCode, detailCustomer?.phone, ""),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const lines = detailServices.length
+      ? detailServices.map((service) => ({
+          description: service.service || "Service",
+          quantity: Number(service.usage ?? 0) || 1,
+          unitPrice: Number(service.price ?? 0),
+          total: Number(service.amount ?? 0),
+          serviceId: service.serviceId || null,
+        }))
+      : [
+          {
+            description: projectDetails.name || project.name || "Project services",
+            quantity: 1,
+            unitPrice: Number(grandTotal ?? 0),
+            total: Number(grandTotal ?? 0),
+          },
+        ];
+
+    setCreatingInvoice(true);
+    try {
+      const created = await api.create("invoices", {
+        projectId: backendId,
+        projectCode: projectDetails.code || project.id || "",
+        projectName: projectDetails.name || project.name || "",
+        customerId: detailCustomer?.id || null,
+        customerName: customerName || "Walk-in Customer",
+        customerEmail: detailCustomer?.email || null,
+        customerPhone:
+          formatPhoneDisplay(detailCustomer?.countryCode, detailCustomer?.phone, "").trim() || null,
+        billToAddress: billToAddress || null,
+        issueDate,
+        dueDate: projectDetails.delivery
+          ? new Date(projectDetails.delivery).toISOString().slice(0, 10)
+          : null,
+        status: "draft",
+        design: "standard",
+        lines,
+        subtotal,
+        discountType,
+        discountValue,
+        discountAmount,
+        tax: taxAmount,
+        taxRate: taxType === "percent" ? taxValue : 0,
+        total: grandTotal,
+        notes: projectDetails.notes || null,
+      });
+      toast.success(`Invoice ${created.invoiceNumber} created`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create invoice");
+    } finally {
+      setCreatingInvoice(false);
     }
   };
 
@@ -323,8 +402,22 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
                 Order amount
               </p>
               <p className="text-3xl font-bold text-foreground">
-                ₹{formatMoney(projectDetails?.grandTotal ?? project.grandTotal ?? project.amount ?? 0)}
+                ₹
+                {formatMoney(
+                  projectDetails?.grandTotal ?? project.grandTotal ?? project.amount ?? 0,
+                )}
               </p>
+              {canGenerateInvoice ? (
+                <Button
+                  className="mt-3 w-full sm:w-auto"
+                  size="sm"
+                  onClick={() => void handleGenerateInvoice()}
+                  disabled={creatingInvoice || !projectDetails}
+                >
+                  <FilePlus2 className="mr-2 h-4 w-4" />
+                  {creatingInvoice ? "Generating..." : "Generate Invoice"}
+                </Button>
+              ) : null}
             </div>
           </div>
 
@@ -459,16 +552,15 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
                       >
                         <td className="px-2 py-2 font-medium">{row.material}</td>
                         <td className="px-2 py-2 text-right">{Number(row.required.toFixed(2))}</td>
-                        <td className="px-2 py-2 text-right">{Number((row.used ?? 0).toFixed(2))}</td>
+                        <td className="px-2 py-2 text-right">
+                          {Number((row.used ?? 0).toFixed(2))}
+                        </td>
                         <td className="px-2 py-2 text-right">{Number(row.inStock.toFixed(2))}</td>
                         <td className="px-2 py-2 text-muted-foreground">{row.unit || "units"}</td>
                         <td className="px-2 py-2 text-right">
                           <Badge
                             variant="outline"
-                            className={cn(
-                              "rounded-md",
-                              getMaterialStatusClasses(row.status),
-                            )}
+                            className={cn("rounded-md", getMaterialStatusClasses(row.status))}
                           >
                             {row.status}
                           </Badge>
@@ -651,7 +743,10 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <Badge variant="outline">{staff.role || "Staff"}</Badge>
-                        <Badge variant="outline" className={cn("border", getStaffStatusClasses(staff.status))}>
+                        <Badge
+                          variant="outline"
+                          className={cn("border", getStaffStatusClasses(staff.status))}
+                        >
                           {staff.status || "Not started"}
                         </Badge>
                       </div>
@@ -660,7 +755,10 @@ const ProjectPreviewSheet = ({ project, backendId, onClose }) => {
                       <select
                         value={staff.status || "Not started"}
                         onChange={(event) =>
-                          void updateAssignedStaffStatus(staff.id || staff.userId, event.target.value)
+                          void updateAssignedStaffStatus(
+                            staff.id || staff.userId,
+                            event.target.value,
+                          )
                         }
                         className="h-9 rounded-md border border-border bg-background px-3 text-sm"
                         disabled={savingStatusUserId === (staff.id || staff.userId)}

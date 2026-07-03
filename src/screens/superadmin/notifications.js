@@ -173,6 +173,11 @@ function ScheduledHistorySection({
                     <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
                       {item.message || item.previewText || "No schedule preview available"}
                     </p>
+                    {item.error ? (
+                      <p className="mt-2 line-clamp-2 text-sm text-red-600 dark:text-red-400">
+                        Error: {item.error}
+                      </p>
+                    ) : null}
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <span className="inline-flex items-center gap-1">
                         <CalendarDays className="h-3.5 w-3.5" />

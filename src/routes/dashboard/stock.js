@@ -445,25 +445,683 @@ export function Stock() {
                 .includes(query);
         return matchesFilter && matchesSearch;
     });
-    return (_jsxs(DashboardLayout, { title: "Stock Management", children: [_jsx("div", { className: "mb-4 flex justify-end", children: _jsxs(Dialog, { open: open, onOpenChange: setOpen, children: [canAdd ? (_jsx(DialogTrigger, { asChild: true, children: _jsxs(Button, { children: [_jsx(PackagePlus, { className: "mr-1 h-4 w-4" }), " Add Stock"] }) })) : null, _jsxs(DialogContent, { children: [_jsx(DialogHeader, { children: _jsx(DialogTitle, { children: "Add stock item" }) }), _jsxs("div", { className: "grid gap-3 py-2 sm:grid-cols-2", children: [_jsxs("div", { className: "space-y-1.5 sm:col-span-2", children: [_jsx(Label, { children: "Stock Category" }), _jsxs(RadioGroup, { value: category, onValueChange: (value) => setCategory(value), className: "grid grid-cols-2 gap-2", children: [_jsx(CategoryOption, { value: "materials", label: "Materials", current: category }), _jsx(CategoryOption, { value: "waste-materials", label: "Waste Materials", current: category })] })] }), _jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "Type" }), _jsxs(Select, { value: form.type, onValueChange: (value) => setForm({ ...form, type: value }), children: [_jsx(SelectTrigger, { children: _jsx(SelectValue, { placeholder: "Select type" }) }), _jsx(SelectContent, { children: materialTypes.map((type) => (_jsx(SelectItem, { value: type.label, children: type.label }, type.id))) })] }), _jsxs("div", { className: "mt-2 flex gap-2", children: [_jsx(Input, { value: customTypeName, onChange: (event) => setCustomTypeName(event.target.value), placeholder: "Add custom type" }), _jsx(Button, { type: "button", variant: "outline", onClick: addMaterialType, children: "Add" })] })] }), category === "waste-materials" ? (_jsxs(_Fragment, { children: [_jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "ID" }), _jsx(Input, { value: wasteId, readOnly: true, placeholder: "Auto generated" })] }), _jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "Size" }), _jsx(Input, { value: wasteSize, onChange: (e) => setWasteSize(e.target.value), placeholder: "e.g. 18mm offcuts" })] }), _jsxs("div", { className: "space-y-1.5 sm:col-span-2", children: [_jsx(Label, { children: "Project" }), _jsxs(Select, { value: wasteProjectId, onValueChange: setWasteProjectId, children: [_jsx(SelectTrigger, { children: _jsx(SelectValue, { placeholder: "Select project (optional)" }) }), _jsxs(SelectContent, { children: [_jsx(SelectItem, { value: "none", children: "No project" }), projects.map((project) => (_jsxs(SelectItem, { value: project.id, children: [project.code, " - ", project.name] }, project.id)))] })] })] }), _jsxs("div", { className: "space-y-1.5 sm:col-span-2", children: [_jsx(Label, { children: "Note" }), _jsx(Input, { value: wasteNote, onChange: (e) => setWasteNote(e.target.value), placeholder: "Add note" })] })] })) : (_jsxs(_Fragment, { children: [_jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "Thickness" }), _jsxs(Select, { value: form.thickness ?? "1mm", onValueChange: (value) => setForm({ ...form, thickness: value }), children: [_jsx(SelectTrigger, { children: _jsx(SelectValue, { placeholder: "Select thickness" }) }), _jsx(SelectContent, { children: thicknessOptions.map((thickness) => (_jsx(SelectItem, { value: thickness, children: thickness }, thickness))) })] })] }), _jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "Quantity" }), _jsx(Input, { type: "number", value: form.quantity || "", onChange: (e) => setForm({ ...form, quantity: Number(e.target.value) }) })] }), _jsxs("div", { className: "space-y-1.5 sm:col-span-2", children: [_jsx(Label, { children: "Unit" }), _jsxs(Select, { value: form.unit, onValueChange: (value) => setForm({ ...form, unit: value }), children: [_jsx(SelectTrigger, { children: _jsx(SelectValue, {}) }), _jsx(SelectContent, { children: units.map((unit) => (_jsx(SelectItem, { value: unit, children: unit }, unit))) })] })] })] }))] }), _jsxs(DialogFooter, { children: [_jsx(Button, { variant: "outline", onClick: () => setOpen(false), children: "Cancel" }), _jsx(Button, { onClick: add, children: "Add stock" })] })] })] }) }), _jsxs(Tabs, { defaultValue: "materials", children: [_jsxs(TabsList, { children: [_jsx(TabsTrigger, { value: "materials", children: "Materials" }), _jsx(TabsTrigger, { value: "waste-materials", children: "Waste Materials" })] }), _jsx(TabsContent, { value: "materials", className: "mt-4", children: _jsx(Card, { className: "border-border/60 shadow-[var(--shadow-card)]", children: _jsx(CardContent, { className: "p-0", children: _jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground", children: [_jsx("th", { className: "px-4 py-3 font-medium", children: "Type" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Thickness" }), _jsx("th", { className: "px-4 py-3 text-right font-medium", children: "Quantity" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Unit" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Status" }), _jsx("th", { className: "px-4 py-3 text-right font-medium", children: "Actions" })] }) }), _jsxs("tbody", { children: [list.map((s) => (_jsxs("tr", { className: "border-b border-border/50 last:border-0 hover:bg-muted/30", children: [_jsx("td", { className: "px-4 py-3 font-medium", children: s.type }), _jsx("td", { className: "px-4 py-3 text-muted-foreground", children: s.thickness || "-" }), _jsx("td", { className: "px-4 py-3 text-right font-semibold", children: Number(s.quantity.toFixed(2)) }), _jsx("td", { className: "px-4 py-3 text-muted-foreground", children: s.unit }), _jsx("td", { className: "px-4 py-3", children: _jsx("span", { className: `rounded-full border px-2 py-0.5 text-[11px] font-medium ${s.quantity < 50
-                                                                        ? "border-warning/30 bg-warning/15 text-warning-foreground"
-                                                                        : "border-success/20 bg-success/10 text-success"}`, children: s.quantity < 50 ? "Low" : "In stock" }) }), _jsx("td", { className: "px-4 py-3 text-right", children: canUpdate || canDelete ? (_jsxs(DropdownMenu, { children: [_jsx(DropdownMenuTrigger, { asChild: true, children: _jsx(Button, { variant: "ghost", size: "icon", "aria-label": `Stock actions for ${s.type}`, children: _jsx(MoreVertical, { className: "h-4 w-4" }) }) }), _jsxs(DropdownMenuContent, { align: "end", className: "w-36", children: [canUpdate ? (_jsxs(DropdownMenuItem, { onClick: () => openEditStock(s), children: [_jsx(Pencil, { className: "mr-2 h-4 w-4" }), "Edit"] })) : null, canDelete ? (_jsxs(DropdownMenuItem, { className: "text-destructive focus:text-destructive", onClick: () => confirmDeleteStock(s), children: [_jsx(Trash2, { className: "mr-2 h-4 w-4" }), "Delete"] })) : null] })] })) : null })] }, s.id))), list.length === 0 && (_jsx("tr", { children: _jsx("td", { colSpan: 6, className: "px-4 py-10 text-center text-sm text-muted-foreground", children: "No stock items found." }) }))] })] }) }) }) }) }), _jsx(TabsContent, { value: "waste-materials", className: "mt-4", children: _jsx(Card, { className: "border-border/60 shadow-[var(--shadow-card)]", children: _jsxs(CardContent, { className: "p-0", children: [_jsxs("div", { className: "flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center", children: [_jsxs("div", { className: "relative min-w-[220px] flex-1", children: [_jsx(Search, { className: "pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" }), _jsx(Input, { value: wasteSearch, onChange: (e) => setWasteSearch(e.target.value), placeholder: "Search ID, material, order, size, note", className: "pl-9" })] }), _jsxs(Select, { value: wasteStockFilter, onValueChange: (value) => setWasteStockFilter(value), children: [_jsx(SelectTrigger, { className: "w-full sm:w-44", children: _jsx(SelectValue, {}) }), _jsxs(SelectContent, { children: [_jsx(SelectItem, { value: "all", children: "All stock" }), _jsx(SelectItem, { value: "available", children: "Available stock" }), _jsx(SelectItem, { value: "used", children: "Used stock" })] })] })] }), _jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground", children: [_jsx("th", { className: "px-4 py-3 font-medium", children: "ID" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Material" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Created From" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Used For" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Size" }), _jsx("th", { className: "px-4 py-3 font-medium", children: "Note" }), _jsx("th", { className: "px-4 py-3 text-right font-medium", children: "Actions" })] }) }), _jsxs("tbody", { children: [filteredWasteList.map((s) => (_jsxs("tr", { className: "border-b border-border/50 last:border-0 hover:bg-muted/30", children: [_jsx("td", { className: "px-4 py-3 font-medium", children: s.id }), _jsx("td", { className: "px-4 py-3 font-medium", children: s.material }), _jsx("td", { className: "px-4 py-3 text-muted-foreground", children: s.projectName || "-" }), _jsx("td", { className: "px-4 py-3 text-muted-foreground", children: s.usedForProjectName || "-" }), _jsx("td", { className: "px-4 py-3 text-muted-foreground", children: s.size }), _jsx("td", { className: "px-4 py-3 text-muted-foreground", children: s.note || "-" }), _jsx("td", { className: "px-4 py-3 text-right", children: canUpdate || canDelete ? (_jsxs(DropdownMenu, { children: [_jsx(DropdownMenuTrigger, { asChild: true, children: _jsx(Button, { variant: "ghost", size: "icon", "aria-label": `Waste material actions for ${s.id}`, children: _jsx(MoreVertical, { className: "h-4 w-4" }) }) }), _jsxs(DropdownMenuContent, { align: "end", className: "w-36", children: [canUpdate ? (_jsxs(DropdownMenuItem, { onClick: () => openAssignWaste(s), children: [_jsx(PackageCheck, { className: "mr-2 h-4 w-4" }), "Assign"] })) : null, canDelete ? (_jsxs(DropdownMenuItem, { className: "text-destructive focus:text-destructive", onClick: () => confirmDeleteWaste(s), children: [_jsx(Trash2, { className: "mr-2 h-4 w-4" }), "Delete"] })) : null] })] })) : null })] }, s.id))), filteredWasteList.length === 0 && (_jsx("tr", { children: _jsx("td", { colSpan: 7, className: "px-4 py-10 text-center text-sm text-muted-foreground", children: wasteList.length === 0
-                                                                    ? "No waste materials found."
-                                                                    : "No waste materials match." }) }))] })] }) })] }) }) })] }), _jsx(Dialog, { open: !!editingStock, onOpenChange: (next) => {
+    return (
+        <DashboardLayout title="Stock Management">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <Dialog open={open} onOpenChange={setOpen}>
+                    {canAdd ? (
+                        <DialogTrigger asChild>
+                            <Button className="w-full sm:w-auto">
+                                <PackagePlus className="mr-1 h-4 w-4" />
+                                Add Stock
+                            </Button>
+                        </DialogTrigger>
+                    ) : null}
+
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Add stock item</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="grid gap-3 py-2 sm:grid-cols-2">
+                            <div className="space-y-1.5 sm:col-span-2">
+                                <Label>Stock Category</Label>
+                                <RadioGroup
+                                    value={category}
+                                    onValueChange={(value) => setCategory(value)}
+                                    className="grid grid-cols-2 gap-2"
+                                >
+                                    <CategoryOption value="materials" label="Materials" current={category} />
+                                    <CategoryOption value="waste-materials" label="Waste Materials" current={category} />
+                                </RadioGroup>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label>Type</Label>
+                                <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value })}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {materialTypes.map((type) => (
+                                            <SelectItem key={type.id} value={type.label}>
+                                                {type.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <div className="mt-2 flex gap-2">
+                                    <Input
+                                        value={customTypeName}
+                                        onChange={(event) => setCustomTypeName(event.target.value)}
+                                        placeholder="Add custom type"
+                                    />
+                                    <Button type="button" variant="outline" onClick={addMaterialType}>
+                                        Add
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {category === "waste-materials" ? (
+                                <>
+                                    <div className="space-y-1.5">
+                                        <Label>ID</Label>
+                                        <Input value={wasteId} readOnly placeholder="Auto generated" />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label>Size</Label>
+                                        <Input
+                                            value={wasteSize}
+                                            onChange={(e) => setWasteSize(e.target.value)}
+                                            placeholder="e.g. 18mm offcuts"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <Label>Project</Label>
+                                        <Select value={wasteProjectId} onValueChange={setWasteProjectId}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select project (optional)" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No project</SelectItem>
+                                                {projects.map((project) => (
+                                                    <SelectItem key={project.id} value={project.id}>
+                                                        {project.code} - {project.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <Label>Note</Label>
+                                        <Input
+                                            value={wasteNote}
+                                            onChange={(e) => setWasteNote(e.target.value)}
+                                            placeholder="Add note"
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="space-y-1.5">
+                                        <Label>Thickness</Label>
+                                        <Select
+                                            value={form.thickness ?? "1mm"}
+                                            onValueChange={(value) => setForm({ ...form, thickness: value })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select thickness" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {thicknessOptions.map((thickness) => (
+                                                    <SelectItem key={thickness} value={thickness}>
+                                                        {thickness}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label>Quantity</Label>
+                                        <Input
+                                            type="number"
+                                            value={form.quantity || ""}
+                                            onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <Label>Unit</Label>
+                                        <Select value={form.unit} onValueChange={(value) => setForm({ ...form, unit: value })}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {units.map((unit) => (
+                                                    <SelectItem key={unit} value={unit}>
+                                                        {unit}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button onClick={add}>Add stock</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            </div>
+
+            <Tabs defaultValue="materials">
+                <TabsList className="grid h-auto w-full grid-cols-2 gap-2 sm:inline-flex sm:w-auto">
+                    <TabsTrigger value="materials" className="w-full">
+                        Materials
+                    </TabsTrigger>
+                    <TabsTrigger value="waste-materials" className="w-full">
+                        Waste Materials
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="materials" className="mt-4">
+                    <Card className="border-border/60 shadow-[var(--shadow-card)]">
+                        <CardContent className="p-0">
+                            <div className="border-b border-border p-4">
+                                <div className="relative w-full sm:max-w-sm">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        value={stockSearch}
+                                        onChange={(e) => {
+                                            setStockPage(1);
+                                            setStockSearch(e.target.value);
+                                        }}
+                                        placeholder="Search type or thickness"
+                                        className="pl-9"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 p-4 md:hidden">
+                                {list.map((item) => (
+                                    <div key={item.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-foreground">{item.type}</p>
+                                                <p className="mt-1 text-sm text-muted-foreground">{item.thickness || "-"}</p>
+                                            </div>
+                                            <span
+                                                className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${item.quantity < 50
+                                                    ? "border-warning/30 bg-warning/15 text-warning-foreground"
+                                                    : "border-success/20 bg-success/10 text-success"}`}
+                                            >
+                                                {item.quantity < 50 ? "Low" : "In stock"}
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-4 grid gap-2 text-sm sm:grid-cols-3">
+                                            <MobileInfoTile label="Quantity" value={Number(item.quantity.toFixed(2))} />
+                                            <MobileInfoTile label="Unit" value={item.unit} />
+                                            <div className="flex items-center justify-end gap-1 sm:justify-start">
+                                                {canUpdate || canDelete ? (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="outline" size="sm">
+                                                                <MoreVertical className="mr-1 h-4 w-4" />
+                                                                Actions
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="w-36">
+                                                            {canUpdate ? (
+                                                                <DropdownMenuItem onClick={() => openEditStock(item)}>
+                                                                    <Pencil className="mr-2 h-4 w-4" />
+                                                                    Edit
+                                                                </DropdownMenuItem>
+                                                            ) : null}
+                                                            {canDelete ? (
+                                                                <DropdownMenuItem
+                                                                    className="text-destructive focus:text-destructive"
+                                                                    onClick={() => confirmDeleteStock(item)}
+                                                                >
+                                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                                    Delete
+                                                                </DropdownMenuItem>
+                                                            ) : null}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {list.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                                        No stock items found.
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            <div className="hidden overflow-x-auto md:block">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                            <th className="px-4 py-3 font-medium">Type</th>
+                                            <th className="px-4 py-3 font-medium">Thickness</th>
+                                            <th className="px-4 py-3 text-right font-medium">Quantity</th>
+                                            <th className="px-4 py-3 font-medium">Unit</th>
+                                            <th className="px-4 py-3 font-medium">Status</th>
+                                            <th className="px-4 py-3 text-right font-medium">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {list.map((item) => (
+                                            <tr key={item.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30">
+                                                <td className="px-4 py-3 font-medium">{item.type}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{item.thickness || "-"}</td>
+                                                <td className="px-4 py-3 text-right font-semibold">{Number(item.quantity.toFixed(2))}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{item.unit}</td>
+                                                <td className="px-4 py-3">
+                                                    <span
+                                                        className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${item.quantity < 50
+                                                            ? "border-warning/30 bg-warning/15 text-warning-foreground"
+                                                            : "border-success/20 bg-success/10 text-success"}`}
+                                                    >
+                                                        {item.quantity < 50 ? "Low" : "In stock"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {canUpdate || canDelete ? (
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" aria-label={`Stock actions for ${item.type}`}>
+                                                                    <MoreVertical className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-36">
+                                                                {canUpdate ? (
+                                                                    <DropdownMenuItem onClick={() => openEditStock(item)}>
+                                                                        <Pencil className="mr-2 h-4 w-4" />
+                                                                        Edit
+                                                                    </DropdownMenuItem>
+                                                                ) : null}
+                                                                {canDelete ? (
+                                                                    <DropdownMenuItem
+                                                                        className="text-destructive focus:text-destructive"
+                                                                        onClick={() => confirmDeleteStock(item)}
+                                                                    >
+                                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                ) : null}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    ) : null}
+                                                </td>
+                                            </tr>
+                                        ))}
+
+                                        {list.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                                                    No stock items found.
+                                                </td>
+                                            </tr>
+                                        ) : null}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="px-4 pb-4 pt-2">
+                                <PaginationControls
+                                    page={stockPagination.page}
+                                    totalPages={stockPagination.totalPages}
+                                    total={stockPagination.total}
+                                    label="stock items"
+                                    loading={false}
+                                    onPrevious={() => setStockPage((current) => Math.max(1, current - 1))}
+                                    onNext={() => setStockPage((current) => Math.min(stockPagination.totalPages || 1, current + 1))}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="waste-materials" className="mt-4">
+                    <Card className="border-border/60 shadow-[var(--shadow-card)]">
+                        <CardContent className="p-0">
+                            <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center">
+                                <div className="relative min-w-[220px] flex-1">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                        value={wasteSearch}
+                                        onChange={(e) => {
+                                            setWastePage(1);
+                                            setWasteSearch(e.target.value);
+                                        }}
+                                        placeholder="Search ID, material, order, size, note"
+                                        className="pl-9"
+                                    />
+                                </div>
+
+                                <Select
+                                    value={wasteStockFilter}
+                                    onValueChange={(value) => {
+                                        setWastePage(1);
+                                        setWasteStockFilter(value);
+                                    }}
+                                >
+                                    <SelectTrigger className="w-full sm:w-44">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All stock</SelectItem>
+                                        <SelectItem value="available">Available stock</SelectItem>
+                                        <SelectItem value="used">Used stock</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-3 p-4 md:hidden">
+                                {filteredWasteList.map((item) => (
+                                    <div key={item.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-semibold text-foreground">{item.id}</p>
+                                                <p className="mt-1 text-sm text-muted-foreground">{item.material}</p>
+                                            </div>
+                                            <div className="flex shrink-0 gap-1">
+                                                {canUpdate || canDelete ? (
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="outline" size="sm">
+                                                                <MoreVertical className="mr-1 h-4 w-4" />
+                                                                Actions
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="w-36">
+                                                            {canUpdate ? (
+                                                                <DropdownMenuItem onClick={() => openAssignWaste(item)}>
+                                                                    <PackageCheck className="mr-2 h-4 w-4" />
+                                                                    Assign
+                                                                </DropdownMenuItem>
+                                                            ) : null}
+                                                            {canDelete ? (
+                                                                <DropdownMenuItem
+                                                                    className="text-destructive focus:text-destructive"
+                                                                    onClick={() => confirmDeleteWaste(item)}
+                                                                >
+                                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                                    Delete
+                                                                </DropdownMenuItem>
+                                                            ) : null}
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                ) : null}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-4 space-y-2 text-sm">
+                                            <MobileInfoTile label="Created From" value={item.projectName || "-"} />
+                                            <MobileInfoTile label="Used For" value={item.usedForProjectName || "-"} />
+                                            <MobileInfoTile label="Size" value={item.size || "-"} />
+                                            <MobileInfoTile label="Note" value={item.note || "-"} />
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {filteredWasteList.length === 0 ? (
+                                    <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                                        {wasteList.length === 0 ? "No waste materials found." : "No waste materials match."}
+                                    </div>
+                                ) : null}
+                            </div>
+
+                            <div className="hidden overflow-x-auto md:block">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                                            <th className="px-4 py-3 font-medium">ID</th>
+                                            <th className="px-4 py-3 font-medium">Material</th>
+                                            <th className="px-4 py-3 font-medium">Created From</th>
+                                            <th className="px-4 py-3 font-medium">Used For</th>
+                                            <th className="px-4 py-3 font-medium">Size</th>
+                                            <th className="px-4 py-3 font-medium">Note</th>
+                                            <th className="px-4 py-3 text-right font-medium">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredWasteList.map((item) => (
+                                            <tr key={item.id} className="border-b border-border/50 last:border-0 hover:bg-muted/30">
+                                                <td className="px-4 py-3 font-medium">{item.id}</td>
+                                                <td className="px-4 py-3 font-medium">{item.material}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{item.projectName || "-"}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{item.usedForProjectName || "-"}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{item.size}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{item.note || "-"}</td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {canUpdate || canDelete ? (
+                                                        <DropdownMenu>
+                                                            <DropdownMenuTrigger asChild>
+                                                                <Button variant="ghost" size="icon" aria-label={`Waste material actions for ${item.id}`}>
+                                                                    <MoreVertical className="h-4 w-4" />
+                                                                </Button>
+                                                            </DropdownMenuTrigger>
+                                                            <DropdownMenuContent align="end" className="w-36">
+                                                                {canUpdate ? (
+                                                                    <DropdownMenuItem onClick={() => openAssignWaste(item)}>
+                                                                        <PackageCheck className="mr-2 h-4 w-4" />
+                                                                        Assign
+                                                                    </DropdownMenuItem>
+                                                                ) : null}
+                                                                {canDelete ? (
+                                                                    <DropdownMenuItem
+                                                                        className="text-destructive focus:text-destructive"
+                                                                        onClick={() => confirmDeleteWaste(item)}
+                                                                    >
+                                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                                        Delete
+                                                                    </DropdownMenuItem>
+                                                                ) : null}
+                                                            </DropdownMenuContent>
+                                                        </DropdownMenu>
+                                                    ) : null}
+                                                </td>
+                                            </tr>
+                                        ))}
+
+                                        {filteredWasteList.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                                                    {wasteList.length === 0 ? "No waste materials found." : "No waste materials match."}
+                                                </td>
+                                            </tr>
+                                        ) : null}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="px-4 pb-4 pt-2">
+                                <PaginationControls
+                                    page={wastePagination.page}
+                                    totalPages={wastePagination.totalPages}
+                                    total={wastePagination.total}
+                                    label="waste materials"
+                                    loading={false}
+                                    onPrevious={() => setWastePage((current) => Math.max(1, current - 1))}
+                                    onNext={() => setWastePage((current) => Math.min(wastePagination.totalPages || 1, current + 1))}
+                                />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+
+            <Dialog
+                open={!!editingStock}
+                onOpenChange={(next) => {
                     if (!next) {
                         setEditingStock(null);
                         setEditQuantity("");
                     }
-                }, children: _jsxs(DialogContent, { className: "max-w-sm", children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: "Update stock value" }), editingStock && (_jsxs("p", { className: "text-sm font-medium text-muted-foreground", children: [editingStock.type, " ", editingStock.thickness || editingStock.material] }))] }), _jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "Quantity" }), _jsx(Input, { type: "number", min: 0, value: editQuantity, onChange: (e) => setEditQuantity(e.target.value), autoFocus: true })] }), _jsxs(DialogFooter, { children: [_jsx(Button, { variant: "outline", onClick: () => {
-                                        setEditingStock(null);
-                                        setEditQuantity("");
-                                    }, children: "Cancel" }), _jsx(Button, { onClick: updateStockQuantity, children: "Save" })] })] }) }), _jsx(Dialog, { open: !!assigningWaste, onOpenChange: (next) => {
-                    if (!next)
-                        closeAssignWaste();
-                }, children: _jsxs(DialogContent, { className: "max-w-md", children: [_jsxs(DialogHeader, { children: [_jsx(DialogTitle, { children: "Assign waste material" }), assigningWaste && (_jsxs("p", { className: "text-sm font-medium text-muted-foreground", children: [assigningWaste.id, " - ", assigningWaste.material] }))] }), _jsxs("div", { className: "grid gap-3 py-2", children: [_jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "Created from" }), _jsxs(Select, { value: assignCreatedFromId, onValueChange: setAssignCreatedFromId, children: [_jsx(SelectTrigger, { children: _jsx(SelectValue, { placeholder: "Select order" }) }), _jsxs(SelectContent, { children: [_jsx(SelectItem, { value: "none", children: "No order" }), projects.map((project) => (_jsxs(SelectItem, { value: project.id, children: [project.code, " - ", project.name] }, project.id)))] })] })] }), _jsxs("div", { className: "space-y-1.5", children: [_jsx(Label, { children: "Used for" }), _jsxs(Select, { value: assignUsedForId, onValueChange: setAssignUsedForId, children: [_jsx(SelectTrigger, { children: _jsx(SelectValue, { placeholder: "Select order" }) }), _jsxs(SelectContent, { children: [_jsx(SelectItem, { value: "none", children: "No order" }), projects.map((project) => (_jsxs(SelectItem, { value: project.id, children: [project.code, " - ", project.name] }, project.id)))] })] })] })] }), _jsxs(DialogFooter, { children: [_jsx(Button, { variant: "outline", onClick: closeAssignWaste, children: "Cancel" }), _jsx(Button, { onClick: saveWasteAssignment, children: "Save" })] })] }) }), _jsx(Dialog, { open: !!deleteStockItem, onOpenChange: () => setDeleteStockItem(null), children: _jsxs(DialogContent, { className: "max-w-sm", children: [_jsx(DialogHeader, { children: _jsx(DialogTitle, { children: "Delete Stock Item" }) }), _jsx("div", { className: "py-4", children: _jsxs("p", { className: "text-sm text-muted-foreground", children: ["Are you sure you want to delete", " ", _jsxs("span", { className: "font-semibold text-foreground", children: [deleteStockItem?.type, " ", deleteStockItem?.thickness] }), "? This action cannot be undone."] }) }), _jsxs(DialogFooter, { children: [_jsx(Button, { variant: "outline", onClick: () => setDeleteStockItem(null), children: "Cancel" }), _jsx(Button, { variant: "destructive", onClick: deleteStock, children: "Delete" })] })] }) }), _jsx(Dialog, { open: !!deleteWasteItem, onOpenChange: () => setDeleteWasteItem(null), children: _jsxs(DialogContent, { className: "max-w-sm", children: [_jsx(DialogHeader, { children: _jsx(DialogTitle, { children: "Delete Waste Material" }) }), _jsx("div", { className: "py-4", children: _jsxs("p", { className: "text-sm text-muted-foreground", children: ["Are you sure you want to delete", " ", _jsxs("span", { className: "font-semibold text-foreground", children: [deleteWasteItem?.material, " (", deleteWasteItem?.id, ")"] }), "? This action cannot be undone."] }) }), _jsxs(DialogFooter, { children: [_jsx(Button, { variant: "outline", onClick: () => setDeleteWasteItem(null), children: "Cancel" }), _jsx(Button, { variant: "destructive", onClick: deleteWaste, children: "Delete" })] })] }) })] }));
+                }}
+            >
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Update stock value</DialogTitle>
+                        {editingStock ? (
+                            <p className="text-sm font-medium text-muted-foreground">
+                                {editingStock.type} {editingStock.thickness || editingStock.material}
+                            </p>
+                        ) : null}
+                    </DialogHeader>
+
+                    <div className="space-y-1.5">
+                        <Label>Quantity</Label>
+                        <Input
+                            type="number"
+                            min={0}
+                            value={editQuantity}
+                            onChange={(e) => setEditQuantity(e.target.value)}
+                            autoFocus
+                        />
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setEditingStock(null);
+                                setEditQuantity("");
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button onClick={updateStockQuantity}>Save</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={!!assigningWaste}
+                onOpenChange={(next) => {
+                    if (!next) closeAssignWaste();
+                }}
+            >
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Assign waste material</DialogTitle>
+                        {assigningWaste ? (
+                            <p className="text-sm font-medium text-muted-foreground">
+                                {assigningWaste.id} - {assigningWaste.material}
+                            </p>
+                        ) : null}
+                    </DialogHeader>
+
+                    <div className="grid gap-3 py-2">
+                        <div className="space-y-1.5">
+                            <Label>Created from</Label>
+                            <Select value={assignCreatedFromId} onValueChange={setAssignCreatedFromId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select order" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">No order</SelectItem>
+                                    {projects.map((project) => (
+                                        <SelectItem key={project.id} value={project.id}>
+                                            {project.code} - {project.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label>Used for</Label>
+                            <Select value={assignUsedForId} onValueChange={setAssignUsedForId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select order" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">No order</SelectItem>
+                                    {projects.map((project) => (
+                                        <SelectItem key={project.id} value={project.id}>
+                                            {project.code} - {project.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={closeAssignWaste}>
+                            Cancel
+                        </Button>
+                        <Button onClick={saveWasteAssignment}>Save</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deleteStockItem} onOpenChange={() => setDeleteStockItem(null)}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Delete Stock Item</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-muted-foreground">
+                            Are you sure you want to delete{" "}
+                            <span className="font-semibold text-foreground">
+                                {deleteStockItem?.type} {deleteStockItem?.thickness}
+                            </span>
+                            ? This action cannot be undone.
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteStockItem(null)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={deleteStock}>
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deleteWasteItem} onOpenChange={() => setDeleteWasteItem(null)}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Delete Waste Material</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <p className="text-sm text-muted-foreground">
+                            Are you sure you want to delete{" "}
+                            <span className="font-semibold text-foreground">
+                                {deleteWasteItem?.material} ({deleteWasteItem?.id})
+                            </span>
+                            ? This action cannot be undone.
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteWasteItem(null)}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={deleteWaste}>
+                            Delete
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </DashboardLayout>
+    );
 }
 function CategoryOption({ value, label, current, }) {
-    return (_jsxs("label", { className: `flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm font-medium ${current === value
-            ? "border-primary bg-[image:var(--gradient-soft)]"
-            : "border-border bg-card"}`, children: [_jsx(RadioGroupItem, { value: value }), label] }));
+    return (
+        <label
+            className={`flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm font-medium ${current === value
+                ? "border-primary bg-[image:var(--gradient-soft)]"
+                : "border-border bg-card"}`}
+        >
+            <RadioGroupItem value={value} />
+            {label}
+        </label>
+    );
+}
+function MobileInfoTile({ label, value }) {
+    return (
+        <div className="rounded-lg bg-muted/30 px-3 py-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+            <p className="break-words text-foreground">{value}</p>
+        </div>
+    );
 }

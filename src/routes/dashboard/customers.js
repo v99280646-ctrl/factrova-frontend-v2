@@ -123,8 +123,8 @@ export function Customers() {
 
   return (
     <DashboardLayout title="Customers">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
@@ -149,6 +149,7 @@ export function Customers() {
           {canAdd ? (
             <DialogTrigger asChild>
               <Button
+                className="w-full sm:w-auto"
                 onClick={() => {
                   resetForm();
                 }}
@@ -216,7 +217,65 @@ export function Customers() {
 
       <Card className="border-border/60 shadow-[var(--shadow-card)]">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="space-y-3 p-4 md:hidden">
+            {list.map((customer) => (
+              <div key={customer.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">{customer.company}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{customer.contact || "No contact person"}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    {canEdit ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditing(customer);
+                          setForm({ ...blankCustomer, ...customer });
+                          setAdvancedOpen(false);
+                          setOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                    {canDelete ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={async () => {
+                          try {
+                            await api.remove("customers", customer.id);
+                            toast.success("Customer removed");
+                            setRefreshToken((value) => value + 1);
+                          } catch (error) {
+                            toast.error(error instanceof Error ? error.message : "Unable to remove customer");
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm">
+                  <MobileInfoRow label="Phone" value={formatPhoneDisplay(customer.countryCode, customer.phone)} />
+                  <MobileInfoRow label="Email" value={customer.email || "-"} />
+                  <MobileInfoRow label="Address" value={customer.address || "-"} />
+                </div>
+              </div>
+            ))}
+
+            {list.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                {loading ? "Loading customers..." : "No customers found."}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -286,7 +345,7 @@ export function Customers() {
               </tbody>
             </table>
           </div>
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-4 pt-2">
             <PaginationControls
               page={pagination.page}
               totalPages={pagination.totalPages}
@@ -308,6 +367,15 @@ function Field({ label, value, onChange }) {
     <div className="space-y-1.5">
       <Label>{label}</Label>
       <Input value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function MobileInfoRow({ label, value }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg bg-muted/30 px-3 py-2">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="break-words text-foreground">{value}</span>
     </div>
   );
 }

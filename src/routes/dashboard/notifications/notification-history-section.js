@@ -63,11 +63,11 @@ export function NotificationHistorySection({
               Search sent emails, filter by channel or event, and open a preview of each dispatch.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={onResetFilters}>
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
+            <Button type="button" variant="outline" onClick={onResetFilters} className="w-full sm:w-auto">
               Reset filters
             </Button>
-            <Button type="button" onClick={onRefresh} variant="outline">
+            <Button type="button" onClick={onRefresh} variant="outline" className="w-full sm:w-auto">
               <RefreshCw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
@@ -75,7 +75,7 @@ export function NotificationHistorySection({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <div className="relative lg:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -179,6 +179,11 @@ export function NotificationHistorySection({
                       <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
                         {item.message || item.previewText || "No message preview available"}
                       </p>
+                      {item.error ? (
+                        <p className="mt-2 line-clamp-2 text-sm text-red-600 dark:text-red-400">
+                          Error: {item.error}
+                        </p>
+                      ) : null}
                       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <CalendarDays className="h-3.5 w-3.5" />
@@ -204,16 +209,17 @@ export function NotificationHistorySection({
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-center text-sm text-muted-foreground sm:text-left">
             Page {historyPagination.page || 1} of {historyPagination.totalPages || 0}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onPrevPage}
               disabled={!historyPagination.hasPrev}
+              className="w-full sm:w-auto"
             >
               <ChevronLeft className="mr-1 h-4 w-4" />
               Prev
@@ -224,6 +230,7 @@ export function NotificationHistorySection({
               size="sm"
               onClick={onNextPage}
               disabled={!historyPagination.hasNext}
+              className="w-full sm:w-auto"
             >
               Next
               <ChevronRight className="ml-1 h-4 w-4" />

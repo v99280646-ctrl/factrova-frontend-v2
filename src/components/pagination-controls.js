@@ -14,15 +14,16 @@ export function PaginationControls({
 
   return safeTotalPages > 1 && (
     <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 text-sm dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-slate-500 dark:text-slate-400">
+      <p className="text-center text-slate-500 dark:text-slate-400 sm:text-left">
         {total} {label}
       </p>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <Button
           variant="outline"
           size="sm"
           onClick={onPrevious}
           disabled={safePage <= 1 || loading}
+          className="w-full sm:w-auto"
         >
           Previous
         </Button>
@@ -34,6 +35,7 @@ export function PaginationControls({
           size="sm"
           onClick={onNext}
           disabled={safePage >= safeTotalPages || loading}
+          className="w-full sm:w-auto"
         >
           Next
         </Button>

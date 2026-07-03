@@ -19,7 +19,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Check, Trash2, MoreVertical, Edit, Eye } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Check,
+  Trash2,
+  MoreVertical,
+  Edit,
+  Eye,
+  CalendarDays,
+} from "lucide-react";
 import { StatusBadge } from "@/components/status/status-badge.js";
 import { toast } from "sonner";
 import { api, apiRequest } from "@/lib/api";
@@ -28,6 +37,124 @@ import { formatDateTimeCompact } from "@/lib/date-format";
 import CreateProjectDialog from "./createProjectDialog";
 import ProjectEditDialog from "./projectEditDialog";
 import ProjectPreviewSheet from "./projectPreviewSheet";
+
+function ProjectMobileCard({
+  project,
+  employeeMode,
+  assigned,
+  assignmentLoading,
+  canEdit,
+  canUpdate,
+  canDelete,
+  onToggleMyProject,
+  onOpenProjectAction,
+  onDeleteProject,
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-base font-semibold text-foreground">{project.name}</p>
+            <StatusBadge status={project.status} />
+          </div>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{project.customer || "-"}</p>
+        </div>
+
+        {!employeeMode ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label={`Project actions for ${project.name}`}>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuItem onClick={() => onOpenProjectAction(project, "view")}>
+                <Eye className="mr-2 h-4 w-4" />
+                View
+              </DropdownMenuItem>
+              {canEdit && canUpdate ? (
+                <DropdownMenuItem onClick={() => onOpenProjectAction(project, "update")}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+              ) : null}
+              {canDelete ? (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => onDeleteProject(project)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-3 rounded-xl bg-muted/35 p-3">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Progress</span>
+          <span className="font-medium text-foreground">{Number(project.progress.toFixed(2))}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-[image:var(--gradient-primary)]"
+            style={{ width: `${Math.min(Math.max(project.progress, 0), 100)}%` }}
+          />
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Delivery
+          </span>
+          <span className="font-medium text-foreground">{formatDateTimeCompact(project.delivery)}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Amount</span>
+          <span className="font-semibold text-foreground">₹{project.amount.toLocaleString("en-IN")}</span>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        {employeeMode ? (
+          <Button
+            className="flex-1"
+            variant={assigned ? "outline" : "default"}
+            disabled={assignmentLoading === project.id}
+            onClick={() => onToggleMyProject(project)}
+          >
+            {assigned ? (
+              <>
+                <Check className="mr-1 h-4 w-4" />
+                Remove
+              </>
+            ) : (
+              <>
+                <Plus className="mr-1 h-4 w-4" />
+                Add to My Projects
+              </>
+            )}
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" className="flex-1" onClick={() => onOpenProjectAction(project, "view")}>
+              <Eye className="mr-1 h-4 w-4" />
+              View
+            </Button>
+            {canEdit && canUpdate ? (
+              <Button className="flex-1" onClick={() => onOpenProjectAction(project, "update")}>
+                <Edit className="mr-1 h-4 w-4" />
+                Edit
+              </Button>
+            ) : null}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // Main Component
 export function Projects() {
@@ -293,8 +420,8 @@ export function Projects() {
   return (
     <DashboardLayout title="Projects">
       {/* Header */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] max-w-sm flex-1">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:min-w-[220px] sm:max-w-sm">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchQuery}
@@ -313,7 +440,7 @@ export function Projects() {
             setFilterStatus(value);
           }}
         >
-          <SelectTrigger className="w-44">
+          <SelectTrigger className="w-full sm:w-44">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
@@ -324,8 +451,8 @@ export function Projects() {
           </SelectContent>
         </Select>
         {!employeeMode && canAdd && (
-          <div className="ml-auto">
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <div className="sm:ml-auto">
+            <Button onClick={() => setIsCreateDialogOpen(true)} className="w-full sm:w-auto">
               <Plus className="mr-1 h-4 w-4" />
               New Project
             </Button>
@@ -336,7 +463,31 @@ export function Projects() {
       {/* Projects Table */}
       <Card className="border-border/60 shadow-[var(--shadow-card)]">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="space-y-3 p-4 md:hidden">
+            {filteredProjects.map((project) => (
+              <ProjectMobileCard
+                key={project.id}
+                project={project}
+                employeeMode={employeeMode}
+                assigned={Boolean(assignedProjects[project.id])}
+                assignmentLoading={assignmentLoading}
+                canEdit={canEdit}
+                canUpdate={canUpdate}
+                canDelete={canDelete}
+                onToggleMyProject={toggleMyProject}
+                onOpenProjectAction={openProjectAction}
+                onDeleteProject={deleteProject}
+              />
+            ))}
+
+            {filteredProjects.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                No projects match your criteria.
+              </div>
+            ) : null}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">

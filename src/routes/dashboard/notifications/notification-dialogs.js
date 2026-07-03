@@ -60,6 +60,51 @@ function getPreviewContent(selectedHistory) {
   return rawText || "";
 }
 
+function getPreviewError(selectedHistory) {
+  if (!selectedHistory) return "";
+
+  if (typeof selectedHistory.error === "string" && selectedHistory.error.trim()) {
+    return selectedHistory.error.trim();
+  }
+
+  if (Array.isArray(selectedHistory.recipients)) {
+    const recipientErrors = selectedHistory.recipients
+      .map((recipient) => {
+        const label = formatRecipientLabel(recipient);
+        const error = typeof recipient?.error === "string" ? recipient.error.trim() : "";
+        if (!error) return "";
+        return label ? `${label}: ${error}` : error;
+      })
+      .filter(Boolean);
+
+    if (recipientErrors.length) {
+      return recipientErrors.join("\n");
+    }
+  }
+
+  const channelResults = selectedHistory.channelResults;
+  if (channelResults && typeof channelResults === "object") {
+    const channelErrors = Object.entries(channelResults)
+      .map(([channel, result]) => {
+        const error =
+          typeof result?.error === "string"
+            ? result.error.trim()
+            : typeof result?.reason === "string"
+              ? result.reason.trim()
+              : "";
+        if (!error) return "";
+        return `${channel}: ${error}`;
+      })
+      .filter(Boolean);
+
+    if (channelErrors.length) {
+      return channelErrors.join("\n");
+    }
+  }
+
+  return "";
+}
+
 export function NotificationPreviewDialog({
   open,
   onOpenChange,
@@ -68,6 +113,7 @@ export function NotificationPreviewDialog({
 }) {
   const isWhatsApp = selectedHistory?.channel === "whatsapp";
   const previewContent = getPreviewContent(selectedHistory);
+  const previewError = getPreviewError(selectedHistory);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -106,13 +152,24 @@ export function NotificationPreviewDialog({
                   {selectedHistory.channel || "-"}
                 </Badge>
               </div>
-              <div className="bg-muted/30 rounded-lg p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
-                <Badge className={cn("mt-1", getHistoryStatusStyle(selectedHistory.status))}>
-                  <span className="capitalize">{selectedHistory.status || "sent"}</span>
-                </Badge>
+                <div className="bg-muted/30 rounded-lg p-3">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
+                  <Badge className={cn("mt-1", getHistoryStatusStyle(selectedHistory.status))}>
+                    <span className="capitalize">{selectedHistory.status || "sent"}</span>
+                  </Badge>
+                </div>
               </div>
-            </div>
+
+            {previewError ? (
+              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
+                <p className="text-xs font-semibold uppercase tracking-wide text-red-700 dark:text-red-300">
+                  Error Message
+                </p>
+                <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm text-red-700 dark:text-red-200">
+                  {previewError}
+                </pre>
+              </div>
+            ) : null}
 
             {/* Main layout: Email Preview takes priority */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

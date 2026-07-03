@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { PhoneNumberField } from "@/components/phone-number-field.js";
 import { apiRootRequest } from "@/lib/api";
 import { API_PATHS } from "@/lib/api-paths";
 import {
@@ -50,6 +51,7 @@ const emptySettings = {
   adminProfile: {
     fullName: "",
     role: "Administrator",
+    countryCode: "+91",
     phone: "",
     email: "",
     city: "",
@@ -61,6 +63,7 @@ const emptySettings = {
   companyProfile: {
     companyName: "",
     gstin: "",
+    countryCode: "+91",
     phone: "",
     email: "",
     city: "",
@@ -91,7 +94,7 @@ function mergeSection(fallback, source) {
     Object.entries(fallback).map(([key, fallbackValue]) => {
       const sourceValue = source?.[key];
       return [key, isMeaningfulValue(sourceValue) ? sourceValue : fallbackValue];
-    })
+    }),
   );
 }
 
@@ -101,14 +104,14 @@ export function Settings() {
   const activeMembership = useMemo(() => getActiveMembership(session), [session]);
   const factoryId = useMemo(
     () => getActiveFactoryId() ?? session?.memberships?.[0]?.factory?.id ?? null,
-    [session]
+    [session],
   );
   const isStaffMember =
     session?.primaryRole === "staff" ||
     session?.profile?.globalRole === "staff" ||
     activeMembership?.role === "staff";
   const canDeleteOwnAccount = !isStaffMember;
-  
+
   const [settings, setSettings] = useState(emptySettings);
   const [activeTab, setActiveTab] = useState("admin-profile");
   const [loading, setLoading] = useState(true);
@@ -121,6 +124,7 @@ export function Settings() {
     () => ({
       fullName: session?.profile?.fullName ?? session?.profile?.name ?? "",
       email: session?.profile?.email ?? "",
+      countryCode: "+91",
       phone: "",
       city: "",
       state: "",
@@ -128,7 +132,22 @@ export function Settings() {
       address: "",
       logoUrl: "",
     }),
-    [session]
+    [session],
+  );
+  const companyProfileFallback = useMemo(
+    () => ({
+      companyName: "",
+      gstin: "",
+      countryCode: "+91",
+      phone: "",
+      email: session?.profile?.email ?? "",
+      city: "",
+      state: "",
+      pincode: "",
+      address: "",
+      logoUrl: "",
+    }),
+    [session],
   );
 
   const loadSettings = useCallback(async () => {
@@ -137,28 +156,32 @@ export function Settings() {
       toast.error("No active factory selected");
       return;
     }
-    
+
     setLoading(true);
     try {
       const data = await apiRootRequest(API_PATHS.factories.settings(factoryId));
       setSettings({
         adminProfile: mergeSection(
           { ...emptySettings.adminProfile, ...profileFallback },
-          data.adminProfile
+          data.adminProfile,
         ),
-        companyProfile: mergeSection(emptySettings.companyProfile, data.companyProfile),
+        companyProfile: mergeSection(
+          { ...emptySettings.companyProfile, ...companyProfileFallback },
+          data.companyProfile,
+        ),
         integrations: mergeSection(emptySettings.integrations, data.integrations),
       });
     } catch (error) {
       setSettings((current) => ({
         ...current,
         adminProfile: mergeSection(current.adminProfile, profileFallback),
+        companyProfile: mergeSection(current.companyProfile, companyProfileFallback),
       }));
       toast.error(error instanceof Error ? error.message : "Unable to load settings");
     } finally {
       setLoading(false);
     }
-  }, [factoryId, profileFallback]);
+  }, [companyProfileFallback, factoryId, profileFallback]);
 
   useEffect(() => {
     loadSettings();
@@ -177,7 +200,7 @@ export function Settings() {
       toast.error("No active factory selected");
       return;
     }
-    
+
     setSaving(true);
     try {
       if (activeTab === "admin-profile") {
@@ -191,7 +214,7 @@ export function Settings() {
         await loadSettings();
         return;
       }
-      
+
       await apiRootRequest(API_PATHS.factories.settings(factoryId), {
         method: "PUT",
         body: settings,
@@ -258,10 +281,17 @@ export function Settings() {
                   })
                 }
               />
-              <Field
+              <PhoneNumberField
                 label="Phone"
-                value={settings.adminProfile.phone}
-                onChange={(value) =>
+                countryCode={settings.adminProfile.countryCode}
+                phone={settings.adminProfile.phone}
+                onCountryCodeChange={(value) =>
+                  updateSection("adminProfile", {
+                    ...settings.adminProfile,
+                    countryCode: value,
+                  })
+                }
+                onPhoneChange={(value) =>
                   updateSection("adminProfile", {
                     ...settings.adminProfile,
                     phone: value,
@@ -384,10 +414,17 @@ export function Settings() {
                   })
                 }
               />
-              <Field
+              <PhoneNumberField
                 label="Phone"
-                value={settings.companyProfile.phone}
-                onChange={(value) =>
+                countryCode={settings.companyProfile.countryCode}
+                phone={settings.companyProfile.phone}
+                onCountryCodeChange={(value) =>
+                  updateSection("companyProfile", {
+                    ...settings.companyProfile,
+                    countryCode: value,
+                  })
+                }
+                onPhoneChange={(value) =>
                   updateSection("companyProfile", {
                     ...settings.companyProfile,
                     phone: value,
@@ -517,8 +554,8 @@ export function Settings() {
             <DialogTitle>Delete account</DialogTitle>
             <DialogDescription>
               This is a soft delete. Existing records stay in the system. If this is a factory admin
-              account, all users in that factory will also be deactivated, and you will be signed out
-              immediately.
+              account, all users in that factory will also be deactivated, and you will be signed
+              out immediately.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -586,11 +623,7 @@ function AddressField({ label, value, onChange }) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
-      <Textarea
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        rows={4}
-      />
+      <Textarea value={value} onChange={(event) => onChange(event.target.value)} rows={4} />
     </div>
   );
 }

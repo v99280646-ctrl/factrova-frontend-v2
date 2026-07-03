@@ -187,9 +187,9 @@ export function NotificationEventCard({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-muted/30"
+        className="flex w-full flex-col gap-3 px-4 py-3 text-left hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between"
       >
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 items-start gap-3 sm:items-center">
           <Switch
             checked={value.enabled !== false}
             onCheckedChange={(next) => onChange({ ...value, enabled: next })}
@@ -212,7 +212,7 @@ export function NotificationEventCard({
             )}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           <Badge variant={value.channels.email.enabled ? "secondary" : "outline"}>Email</Badge>
           <Badge variant={value.channels.whatsapp.enabled ? "secondary" : "outline"}>
             WhatsApp
@@ -222,7 +222,7 @@ export function NotificationEventCard({
             type="button"
             variant="outline"
             size="sm"
-            className="h-8 gap-1"
+            className="h-8 w-full gap-1 sm:w-auto"
             onClick={(e) => {
               e.stopPropagation();
               onSendNow?.(definition.key);
@@ -238,7 +238,7 @@ export function NotificationEventCard({
               Scheduled
             </Badge>
           )}
-          <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} />
+          <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform sm:ml-0", expanded && "rotate-180")} />
         </div>
       </button>
 

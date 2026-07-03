@@ -217,7 +217,69 @@ export function Vendors() {
 
       <Card className="border-border/60 shadow-[var(--shadow-card)]">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="space-y-3 p-4 md:hidden">
+            {list.map((vendor) => (
+              <div key={vendor.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">{vendor.name}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{vendor.materials || "No material notes"}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    {canEdit ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditing(vendor);
+                          setForm({ ...blankVendor, ...vendor });
+                          setOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                    {canDelete ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={async () => {
+                          try {
+                            await api.remove("vendors", vendor.id);
+                            toast.success("Vendor removed");
+                            setRefreshToken((value) => value + 1);
+                          } catch (error) {
+                            toast.error(error instanceof Error ? error.message : "Unable to remove vendor");
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-2 text-sm">
+                  <MobileInfoRow label="Contact" value={formatPhoneDisplay(vendor.countryCode, vendor.contact)} />
+                  <MobileInfoRow
+                    label="Alt Contact"
+                    value={vendor.alternativeContact ? formatPhoneDisplay(vendor.alternativeCountryCode, vendor.alternativeContact) : "-"}
+                  />
+                  <MobileInfoRow label="Email" value={vendor.email || "-"} />
+                  <MobileInfoRow label="GST" value={vendor.gst || "-"} />
+                  <MobileInfoRow label="Address" value={vendor.address || "-"} />
+                </div>
+              </div>
+            ))}
+
+            {list.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+                {loading ? "Loading vendors..." : "No vendors found."}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -295,7 +357,7 @@ export function Vendors() {
               </tbody>
             </table>
           </div>
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-4 pt-2">
             <PaginationControls
               page={pagination.page}
               totalPages={pagination.totalPages}
@@ -317,6 +379,15 @@ function FormField({ label, value, onChange, type = "text", className = "" }) {
     <div className={`space-y-1.5 ${className}`.trim()}>
       <Label>{label}</Label>
       <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function MobileInfoRow({ label, value }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-lg bg-muted/30 px-3 py-2">
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="break-words text-foreground">{value}</span>
     </div>
   );
 }
