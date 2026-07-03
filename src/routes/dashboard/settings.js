@@ -339,7 +339,15 @@ export function Settings() {
                   })
                 }
               />
-              <LogoField />
+              <LogoField
+                value={settings.adminProfile.logoUrl}
+                onChange={(value) =>
+                  updateSection("adminProfile", {
+                    ...settings.adminProfile,
+                    logoUrl: value,
+                  })
+                }
+              />
             </div>
             <AddressField
               label="Address"
@@ -472,7 +480,15 @@ export function Settings() {
                   })
                 }
               />
-              <LogoField />
+              <LogoField
+                value={settings.companyProfile.logoUrl}
+                onChange={(value) =>
+                  updateSection("companyProfile", {
+                    ...settings.companyProfile,
+                    logoUrl: value,
+                  })
+                }
+              />
             </div>
             <AddressField
               label="Address"
@@ -628,15 +644,35 @@ function AddressField({ label, value, onChange }) {
   );
 }
 
-function LogoField() {
+function LogoField({ value, onChange }) {
   return (
     <div className="space-y-1.5">
-      <Label>Logo</Label>
-      <div className="flex items-center gap-3 rounded-lg border border-dashed border-border p-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <Label>Logo URL</Label>
+      <div className="flex items-start gap-3 rounded-lg border border-dashed border-border p-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
           <ImagePlus className="h-5 w-5" />
         </div>
-        <Input type="file" accept="image/*" />
+        <div className="flex-1 space-y-2">
+          <Input
+            type="url"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder="https://example.com/logo.png"
+          />
+          <p className="text-xs text-muted-foreground">
+            Add a direct image URL for the profile logo.
+          </p>
+          {value ? (
+            <div className="overflow-hidden rounded-md border border-border bg-background p-2">
+              <img
+                src={value}
+                alt="Logo preview"
+                className="h-16 w-16 object-contain"
+                loading="lazy"
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
